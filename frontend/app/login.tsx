@@ -58,10 +58,13 @@ export default function ArenaOnboardingScreen() {
     try {
       if (mode === 'signup') {
         await signUp(email.trim(), password, username.trim(), selectedAvatar.emoji);
+        // New users go to onboarding to choose data source
+        router.replace('/onboarding');
       } else {
         await signIn(email.trim(), password);
+        // Existing users go straight to app
+        router.replace('/(tabs)');
       }
-      router.replace('/(tabs)');
     } catch (err: any) {
       console.error('Auth error:', err);
       if (err.message?.includes('User already registered')) {
