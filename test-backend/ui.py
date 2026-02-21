@@ -11,7 +11,7 @@ from pathlib import Path
 
 import gradio as gr
 
-from main import ask_claude, ask_gemini, ask_openai, ask_claude_calendar, prepare_input
+from main import ask_claude, ask_gemini, ask_openai, ask_claude_calendar, prepare_input, get_budget_tips
 
 DATA_DIR = Path(__file__).parent.parent / "backend" / "data"
 
@@ -109,6 +109,14 @@ def calendar_local(filename):
     return _format_calendar(raw), raw
 
 
+def get_tips(predictions_text):
+    """Get budget tips from predicted spending."""
+    if not predictions_text or not predictions_text.strip():
+        return "Enter spending predictions first."
+    tips = asyncio.run(get_budget_tips(predictions_text))
+    return tips
+
+
 with gr.Blocks(
     title="Prophit — Multi-LLM Analyser",
     theme=gr.themes.Base(primary_hue="blue", neutral_hue="slate"),
@@ -190,6 +198,24 @@ with gr.Blocks(
                         inputs=[cal_dropdown],
                         outputs=[cal_loc_md, cal_loc_json],
                     )
+
+        # --- Tab 4: Budget Tips ---
+        with gr.Tab("Budget Tips"):
+            gr.Markdown("Paste predicted spending patterns to get AI-powered budget-saving tips.")
+
+            predictions_input = gr.Textbox(
+                label="Predicted Spending Patterns",
+                placeholder="e.g., Coffee at Starbucks 3x weekly for $5.50, gym supplements $12/week, groceries $120/month",
+                lines=4
+            )
+            tips_btn = gr.Button("Get Budget Tips", variant="primary")
+            tips_output = gr.Markdown(label="Budget Tips")
+
+            tips_btn.click(
+                fn=get_tips,
+                inputs=[predictions_input],
+                outputs=[tips_output],
+            )
 
 if __name__ == "__main__":
     demo.launch(server_port=8003)

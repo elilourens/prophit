@@ -370,6 +370,45 @@ async def analyse_local(filename: str = "john.json"):
     return _render_results(filename, claude_response, gemini_response, openai_response)
 
 
+@app.post("/budget-tips", tags=["budget"])
+async def budget_tips(text: str):
+    """
+    Get budget-friendly tips based on predicted spending patterns.
+
+    Pass predicted spending as a query parameter or in request body.
+    """
+    if not text or not text.strip():
+        raise HTTPException(status_code=400, detail="Provide spending predictions as text")
+
+    tips = await get_budget_tips(text)
+    return {"tips": tips}
+
+
+async def get_budget_tips(predictions: str) -> str:
+    """Send predicted expenditure to OpenAI and get budget-friendly tips."""
+    if not OPENAI_API_KEY:
+        return "[SKIPPED] OPENAI_API_KEY not set"
+
+    prompt = f"""Based on the following predicted spending patterns, provide 2-3 concise, actionable budget tips to save money. Keep each tip to 1 sentence. Focus on practical changes.
+
+Predicted Spending:
+{predictions}
+
+Tips:"""
+
+    try:
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=150,
+            temperature=0.7,
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"[ERROR] Budget tips failed: {e}"
+
+
 def _render_results(filename: str, claude: str, gemini: str, openai: str) -> HTMLResponse:
     """Render LLM responses as a readable HTML page with markdown rendering."""
     import html
