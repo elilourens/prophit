@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     anthropic_api_key: str = ""
     google_api_key: str = ""
+    crusoe_api_key: str = ""
+    crusoe_base_url: str = ""
+    crusoe_model: str = ""
     
     class Config:
         env_file = ".env"

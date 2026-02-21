@@ -26,9 +26,9 @@ Generate a JSON response with the following structure:
   "key_patterns": ["pattern1", "pattern2", ...],
   "oddities": ["unusual transaction or pattern", ...],
   "predictions": ["prediction for next day", ...],
-  "risk_flags": ["risk indicator", ...],
+  
   "confidence": 0.0-1.0,
-  "explanations": ["rationale tied to data evidence", ...]
+  
 }}
 
 Remember: Only use provided data. If uncertain, say "insufficient evidence"."""
@@ -59,6 +59,74 @@ Generate a JSON response with the following structure:
 }}
 
 Remember: Only use provided data. If uncertain, say "insufficient evidence"."""
+
+    THREE_MONTH_INSIGHTS_PROMPT_TEMPLATE = """You are a personal finance analyst assistant. Analyze the user's banking transaction history from the last 3 months to identify recurring behavioral patterns.
+
+INSTRUCTIONS:
+- Parse each transaction noting: date, day of week, merchant/category, amount, time of day (if available)
+- Only use information explicitly provided in the data below
+- If you are uncertain about something, state "insufficient evidence"
+- Calculate likelihood as: occurrences ÷ total opportunities × 100
+
+IDENTIFY:
+- Day-of-week habits: purchases that happen consistently on specific weekdays
+- Weekend vs weekday behavior differences
+- Time-based patterns: morning, lunch, evening spending
+- Frequency of each pattern relative to opportunity (e.g., 8 out of 12 Mondays)
+
+TRANSACTION DATA:
+{transaction_data}
+
+EXTERNAL FACTORS (if available):
+{external_factors}
+
+Generate a JSON response with the following structure:
+{{
+  "weekly_patterns": [
+    {{
+      "day": "Monday",
+      "predicted_behavior": "Coffee at [Merchant]",
+      "likelihood_pct": 83,
+      "avg_spend": 5.50
+    }}
+  ],
+  "insights": ["insight1", "insight2", "insight3"],
+  "confidence": 0.0-1.0
+}}
+
+Remember: Only use provided data. If uncertain, say "insufficient evidence"."""
+
+    THREE_MONTH_JUDGE_PROMPT_TEMPLATE = """You are a judge evaluating multiple 3-month behavioral pattern analyses. Select the best analysis based on the following rubric:
+
+RUBRIC:
+1. PATTERN ACCURACY: Are identified patterns genuinely recurring and supported by the data?
+2. EVIDENCE: Are likelihood percentages and averages correctly calculated?
+3. NON-HALLUCINATION: Does the analysis avoid inventing patterns not in the data?
+4. ACTIONABLE: Are the insights useful for predicting future spending?
+5. SPECIFICITY: Are patterns tied to specific days, merchants, and amounts?
+
+PENALIZE:
+- Hallucinated patterns not in the data
+- Incorrect likelihood calculations
+- Vague patterns without specific evidence
+- Overly confident predictions without basis
+
+CANDIDATE ANALYSES:
+{summaries_json}
+
+Return JSON with:
+{{
+  "winning_model_id": "model_id",
+  "ranked_models": ["model1", "model2", ...],
+  "reasons": ["reason1", "reason2", ...],
+  "final_summary": {{
+    "model_id": "...",
+    "summary_type": "three_month_insights",
+    "weekly_patterns": [...],
+    "insights": [...],
+    "confidence": 0.0-1.0
+  }}
+}}"""
 
     JUDGE_PROMPT_TEMPLATE = """You are a judge evaluating multiple financial summaries. Select the best summary based on the following rubric:
 
@@ -122,6 +190,28 @@ Return JSON with:
             external_factors=external_factors or "None provided",
         )
     
+    def build_three_month_insights_prompt(
+        self,
+        transaction_data: str,
+        weather: Optional[List[WeatherForecast]] = None,
+        holidays: Optional[List[HolidayCalendar]] = None,
+    ) -> str:
+        """Build three-month insights prompt."""
+        external_factors = self._format_external_factors(weather, holidays)
+        return self.THREE_MONTH_INSIGHTS_PROMPT_TEMPLATE.format(
+            transaction_data=transaction_data,
+            external_factors=external_factors or "None provided",
+        )
+
+    def build_three_month_judge_prompt(
+        self,
+        summaries_json: str,
+    ) -> str:
+        """Build three-month judge prompt."""
+        return self.THREE_MONTH_JUDGE_PROMPT_TEMPLATE.format(
+            summaries_json=summaries_json,
+        )
+
     def build_judge_prompt(
         self,
         summaries_json: str,
