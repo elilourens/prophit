@@ -4,7 +4,7 @@ Test backend — Ingest a JSON file and send it to multiple LLM providers.
 Providers:
   1. Claude (Anthropic)
   2. Gemini (Google)
-  3. Mistral
+  3. Groq
 
 Run:
   uvicorn main:app --reload --port 8001
@@ -14,13 +14,13 @@ import csv
 import io
 import json
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import anthropic
 import pdfplumber
 from google import genai
-from mistralai import Mistral
+from openai import OpenAI
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,12 +34,17 @@ load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 SYSTEM_PROMPT = """\
 You are a personal finance analyst. Analyze the user's banking transaction history to identify recurring behavioral patterns.
 
-IMPORTANT: Only include a pattern if the same behavior at the same merchant appears on that weekday at least TWICE in the data. One-off transactions are not patterns — ignore them.
+CRITICAL ACCURACY RULES:
+- Use the "day_of_week" field in each transaction to determine the day. NEVER calculate or guess the day yourself.
+- Only include a pattern if the same behavior at the same merchant appears on that weekday at least TWICE in the data.
+- Do NOT hallucinate, invent, or assume patterns that don't explicitly exist in the data.
+- One-off transactions are not patterns — ignore them completely.
+- Every behavior you list must be directly verifiable by counting occurrences in the provided data.
 
 Output ONLY a markdown table with 2-3 predicted behaviors per weekday (Monday through Sunday). No explanations, no headings, no other text — just the table.
 
@@ -80,6 +85,19 @@ def trim_transactions(data: dict) -> dict:
         txns = statement.get("transactions", [])
         if len(txns) > MAX_TRANSACTIONS:
             statement["transactions"] = txns[-MAX_TRANSACTIONS:]
+    return data
+
+
+def enrich_transactions_with_weekday(data: dict) -> dict:
+    """Add day_of_week field to each transaction based on timestamp."""
+    for statement in data.get("statements", []):
+        for txn in statement.get("transactions", []):
+            if "timestamp" in txn:
+                try:
+                    dt = datetime.fromisoformat(txn["timestamp"].replace("Z", "+00:00"))
+                    txn["day_of_week"] = dt.strftime("%A")
+                except (ValueError, AttributeError):
+                    pass
     return data
 
 
@@ -125,6 +143,7 @@ def prepare_input(raw_bytes: bytes, filename: str) -> str:
         text = raw_bytes.decode("utf-8", errors="replace")
         data = json.loads(text)
         data = trim_transactions(data)
+        data = enrich_transactions_with_weekday(data)
         return json.dumps(data, indent=2)
 
     if ext == "csv":
@@ -176,23 +195,24 @@ async def ask_gemini(data_str: str) -> str:
         return f"[ERROR] Gemini failed: {e}"
 
 
-async def ask_mistral(data_str: str) -> str:
-    """Send data to Mistral and return the response."""
-    if not MISTRAL_API_KEY:
-        return "[SKIPPED] MISTRAL_API_KEY not set"
+async def ask_openai(data_str: str) -> str:
+    """Send data to OpenAI and return the response."""
+    if not OPENAI_API_KEY:
+        return "[SKIPPED] OPENAI_API_KEY not set"
 
     try:
-        client = Mistral(api_key=MISTRAL_API_KEY)
-        response = client.chat.complete(
-            model="mistral-small-latest",
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": data_str},
             ],
+            max_tokens=1024,
         )
         return response.choices[0].message.content
     except Exception as e:
-        return f"[ERROR] Mistral failed: {e}"
+        return f"[ERROR] OpenAI failed: {e}"
 
 
 CALENDAR_PROMPT = """\
@@ -208,7 +228,8 @@ Rules:
 - If both models missed an obvious pattern visible in the raw data, add it.
 - If a prediction contradicts the raw data (wrong merchant, inflated frequency), correct or drop it.
 - Pick 2-3 predictions per day, prioritising ones that appear in more than one model's output.
-- Output ONLY valid JSON, no markdown fences, no explanation.
+- DEDUPLICATION: Do NOT list the same merchant/behavior twice on the same day. If a merchant appears multiple times, consolidate into ONE entry with the highest likelihood and most accurate avg spend.
+- Output ONLY raw JSON with NO markdown code fences (no ```json, no ```), NO explanations, NO additional text.
 
 JSON format:
 {{
@@ -231,10 +252,10 @@ JSON format:
 """
 
 
-async def ask_gemini_calendar(data_str: str, claude_result: str, gemini_result: str, mistral_result: str) -> str:
-    """Send raw data + combined provider results to Gemini to build a week-ahead calendar."""
-    if not GEMINI_API_KEY:
-        return "[SKIPPED] GEMINI_API_KEY not set"
+async def ask_claude_calendar(data_str: str, claude_result: str, gemini_result: str, openai_result: str) -> str:
+    """Send raw data + combined provider results to Claude to build a week-ahead calendar."""
+    if not ANTHROPIC_API_KEY:
+        return "[SKIPPED] ANTHROPIC_API_KEY not set"
 
     start = date.today() + timedelta(days=1)
     start_date = start.isoformat()
@@ -245,18 +266,19 @@ async def ask_gemini_calendar(data_str: str, claude_result: str, gemini_result: 
         "=== Raw Transaction Data ===\n" + data_str + "\n\n"
         "=== Claude predictions ===\n" + claude_result + "\n\n"
         "=== Gemini predictions ===\n" + gemini_result + "\n\n"
-        "=== Mistral predictions ===\n" + mistral_result
+        "=== OpenAI predictions ===\n" + openai_result
     )
 
     try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=f"{prompt}\n\n{combined}",
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=2048,
+            messages=[{"role": "user", "content": f"{prompt}\n\n{combined}"}],
         )
-        return response.text
+        return message.content[0].text
     except Exception as e:
-        return f"[ERROR] Gemini calendar failed: {e}"
+        return f"[ERROR] Claude calendar failed: {e}"
 
 
 # ---------------------------------------------------------------------------
@@ -270,7 +292,7 @@ async def health():
         "providers": {
             "claude": "ready" if ANTHROPIC_API_KEY else "no key",
             "gemini": "ready" if GEMINI_API_KEY else "no key",
-            "mistral": "ready" if MISTRAL_API_KEY else "no key",
+            "openai": "ready" if OPENAI_API_KEY else "no key",
         },
     }
 
@@ -290,7 +312,7 @@ async def analyse(file: UploadFile = File(...)):
     # --- Fan out to each provider ---
     claude_response = await ask_claude(data_str)
     gemini_response = await ask_gemini(data_str)
-    mistral_response = await ask_mistral(data_str)
+    openai_response = await ask_openai(data_str)
 
     # --- Print to console for quick debugging ---
     print("\n" + "=" * 60)
@@ -302,12 +324,12 @@ async def analyse(file: UploadFile = File(...)):
     print("-" * 60)
     print(gemini_response)
     print("\n" + "=" * 60)
-    print("MISTRAL RESPONSE:")
+    print("OPENAI RESPONSE:")
     print("-" * 60)
-    print(mistral_response)
+    print(openai_response)
     print("=" * 60 + "\n")
 
-    return _render_results(file.filename, claude_response, gemini_response, mistral_response)
+    return _render_results(file.filename, claude_response, gemini_response, openai_response)
 
 
 @app.post("/analyse-local", tags=["llm"])
@@ -324,11 +346,12 @@ async def analyse_local(filename: str = "john.json"):
         data = json.load(f)
 
     data = trim_transactions(data)
+    data = enrich_transactions_with_weekday(data)
     data_str = json.dumps(data, indent=2)
 
     claude_response = await ask_claude(data_str)
     gemini_response = await ask_gemini(data_str)
-    mistral_response = await ask_mistral(data_str)
+    openai_response = await ask_openai(data_str)
 
     print("\n" + "=" * 60)
     print("CLAUDE RESPONSE:")
@@ -339,20 +362,20 @@ async def analyse_local(filename: str = "john.json"):
     print("-" * 60)
     print(gemini_response)
     print("\n" + "=" * 60)
-    print("MISTRAL RESPONSE:")
+    print("OPENAI RESPONSE:")
     print("-" * 60)
-    print(mistral_response)
+    print(openai_response)
     print("=" * 60 + "\n")
 
-    return _render_results(filename, claude_response, gemini_response, mistral_response)
+    return _render_results(filename, claude_response, gemini_response, openai_response)
 
 
-def _render_results(filename: str, claude: str, gemini: str, mistral: str) -> HTMLResponse:
+def _render_results(filename: str, claude: str, gemini: str, openai: str) -> HTMLResponse:
     """Render LLM responses as a readable HTML page with markdown rendering."""
     import html
     claude_escaped = html.escape(claude)
     gemini_escaped = html.escape(gemini)
-    mistral_escaped = html.escape(mistral)
+    openai_escaped = html.escape(openai)
 
     page = f"""\
 <!DOCTYPE html>
@@ -374,7 +397,7 @@ def _render_results(filename: str, claude: str, gemini: str, mistral: str) -> HT
                     padding-bottom: 0.5rem; margin-bottom: 1rem; }}
     .provider.claude h2 {{ color: #d2a8ff; }}
     .provider.gemini h2 {{ color: #7ee787; }}
-    .provider.crusoe h2 {{ color: #ffa657; }}
+    .provider.openai h2 {{ color: #10a981; }}
     .content {{ line-height: 1.6; }}
     .content table {{ border-collapse: collapse; width: 100%; margin: 1rem 0; }}
     .content th, .content td {{ border: 1px solid #30363d; padding: 8px 12px; text-align: left; }}
@@ -397,20 +420,20 @@ def _render_results(filename: str, claude: str, gemini: str, mistral: str) -> HT
       <h2>Gemini (2.5 Flash Lite)</h2>
       <div class="content" id="gemini"></div>
     </div>
-    <div class="provider mistral">
-      <h2>Mistral</h2>
-      <div class="content" id="mistral"></div>
+    <div class="provider openai">
+      <h2>OpenAI (GPT-4o Mini)</h2>
+      <div class="content" id="openai"></div>
     </div>
   </div>
   <script>
     const raw = {{
       claude: `{claude_escaped}`,
       gemini: `{gemini_escaped}`,
-      crusoe: `{mistral_escaped}`,
+      openai: `{openai_escaped}`,
     }};
     document.getElementById('claude').innerHTML = marked.parse(raw.claude);
     document.getElementById('gemini').innerHTML = marked.parse(raw.gemini);
-    document.getElementById('mistral').innerHTML = marked.parse(raw.mistral);
+    document.getElementById('openai').innerHTML = marked.parse(raw.openai);
   </script>
 </body>
 </html>"""

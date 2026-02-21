@@ -11,7 +11,7 @@ from pathlib import Path
 
 import gradio as gr
 
-from main import ask_claude, ask_gemini, ask_mistral, ask_gemini_calendar, prepare_input
+from main import ask_claude, ask_gemini, ask_openai, ask_claude_calendar, prepare_input
 
 DATA_DIR = Path(__file__).parent.parent / "backend" / "data"
 
@@ -27,8 +27,8 @@ def _run_predictions(data_str: str):
     """Run all three providers and return their results."""
     claude = asyncio.run(ask_claude(data_str))
     gemini = asyncio.run(ask_gemini(data_str))
-    mistral = asyncio.run(ask_mistral(data_str))
-    return claude, gemini, mistral
+    openai = asyncio.run(ask_openai(data_str))
+    return claude, gemini, openai
 
 
 def _load_and_prepare(filepath) -> str:
@@ -59,7 +59,17 @@ def analyse_local(filename):
 def _format_calendar(raw_json: str) -> str:
     """Format calendar JSON into a readable markdown string."""
     try:
-        cal = json.loads(raw_json)
+        # Strip markdown code fences if present
+        cleaned = raw_json.strip()
+        if cleaned.startswith("```json"):
+            cleaned = cleaned[7:]  # remove ```json
+        elif cleaned.startswith("```"):
+            cleaned = cleaned[3:]  # remove ```
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]  # remove trailing ```
+        cleaned = cleaned.strip()
+
+        cal = json.loads(cleaned)
     except (json.JSONDecodeError, TypeError):
         return raw_json  # return raw if not valid JSON
 
@@ -81,8 +91,8 @@ def calendar_uploaded(file):
     if file is None:
         return "Upload a file first.", ""
     data_str = _load_and_prepare(file.name)
-    claude, gemini, mistral = _run_predictions(data_str)
-    raw = asyncio.run(ask_gemini_calendar(data_str, claude, gemini, mistral))
+    claude, gemini, openai = _run_predictions(data_str)
+    raw = asyncio.run(ask_claude_calendar(data_str, claude, gemini, openai))
     return _format_calendar(raw), raw
 
 
@@ -94,8 +104,8 @@ def calendar_local(filename):
     if not filepath.exists():
         return f"File not found: {filepath}", ""
     data_str = _load_and_prepare(filepath)
-    claude, gemini, mistral = _run_predictions(data_str)
-    raw = asyncio.run(ask_gemini_calendar(data_str, claude, gemini, mistral))
+    claude, gemini, openai = _run_predictions(data_str)
+    raw = asyncio.run(ask_claude_calendar(data_str, claude, gemini, openai))
     return _format_calendar(raw), raw
 
 
@@ -116,12 +126,12 @@ with gr.Blocks(
             with gr.Row():
                 claude_up = gr.Markdown(label="Claude (Haiku 4.5)")
                 gemini_up = gr.Markdown(label="Gemini (2.5 Flash Lite)")
-                mistral_up = gr.Markdown(label="Mistral")
+                openai_up = gr.Markdown(label="OpenAI (GPT-4o Mini)")
 
             upload_btn.click(
                 fn=analyse_uploaded,
                 inputs=[file_input],
-                outputs=[claude_up, gemini_up, mistral_up],
+                outputs=[claude_up, gemini_up, openai_up],
             )
 
         # --- Tab 2: Local files ---
@@ -137,17 +147,17 @@ with gr.Blocks(
             with gr.Row():
                 claude_loc = gr.Markdown(label="Claude (Haiku 4.5)")
                 gemini_loc = gr.Markdown(label="Gemini (2.5 Flash Lite)")
-                mistral_loc = gr.Markdown(label="Mistral")
+                openai_loc = gr.Markdown(label="OpenAI (GPT-4o Mini)")
 
             local_btn.click(
                 fn=analyse_local,
                 inputs=[file_dropdown],
-                outputs=[claude_loc, gemini_loc, mistral_loc],
+                outputs=[claude_loc, gemini_loc, openai_loc],
             )
 
         # --- Tab 3: Week Ahead Calendar ---
         with gr.Tab("Week Ahead"):
-            gr.Markdown("Runs all providers, then sends combined results to Gemini "
+            gr.Markdown("Runs all providers, then sends combined results to Claude "
                         "to build a week-ahead spending calendar. "
                         "Predictions that agree across models are prioritised.")
 
@@ -182,4 +192,4 @@ with gr.Blocks(
                     )
 
 if __name__ == "__main__":
-    demo.launch(server_port=8002)
+    demo.launch(server_port=8003)
