@@ -6,13 +6,14 @@ import {
   TouchableOpacity,
   Dimensions,
   ActivityIndicator,
-  TextInput,
   ScrollView,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { theme } from '../components/theme';
 import { setUseUploadedData } from '../services/backendApi';
 
@@ -120,11 +121,18 @@ const DataSourceCard = ({
 /**
  * Onboarding Screen - Data Source Selection
  */
+interface SelectedFile {
+  name: string;
+  size: number;
+  uri: string;
+  mimeType?: string;
+}
+
 export default function OnboardingScreen() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [selectedSource, setSelectedSource] = useState<DataSourceOption | null>(null);
-  const [csvContent, setCsvContent] = useState('');
+  const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
   const [isUploading, setIsUploading] = useState(false);
 
   const totalSteps = 2;
@@ -146,25 +154,58 @@ export default function OnboardingScreen() {
     }
   };
 
+  const handlePickFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*', // Accept any file type
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const file = result.assets[0];
+        setSelectedFile({
+          name: file.name,
+          size: file.size || 0,
+          uri: file.uri,
+          mimeType: file.mimeType,
+        });
+      }
+    } catch (error) {
+      console.error('File picker error:', error);
+      Alert.alert('Error', 'Failed to select file. Please try again.');
+    }
+  };
+
   const handleUpload = async () => {
-    if (!csvContent.trim()) {
-      Alert.alert('Error', 'Please paste your transaction data');
+    if (!selectedFile) {
+      Alert.alert('Error', 'Please select a file first');
       return;
     }
 
     setIsUploading(true);
     try {
+      // Read file content
+      const fileContent = await FileSystem.readAsStringAsync(selectedFile.uri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
       // Store the uploaded content and mark as using uploaded data
-      setUseUploadedData(true, csvContent);
+      setUseUploadedData(true, fileContent);
 
       // Navigate to app
       router.replace('/(tabs)');
     } catch (error) {
       console.error('Upload error:', error);
-      Alert.alert('Error', 'Failed to process your data. Please try again.');
+      Alert.alert('Error', 'Failed to process your file. Please try again.');
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const handleBack = () => {
@@ -249,35 +290,56 @@ export default function OnboardingScreen() {
           <View style={styles.titleSection}>
             <Text style={styles.title}>Upload Data</Text>
             <Text style={styles.subtitle}>
-              Paste your transaction data below. We support CSV or JSON format with date, description, amount, and category fields.
+              Upload your transaction file. We support CSV, JSON, PDF, and most common formats.
             </Text>
           </View>
 
           <View style={styles.formatHint}>
             <Ionicons name="information-circle-outline" size={20} color={theme.colors.deepTeal} />
             <Text style={styles.formatHintText}>
-              CSV format: date,description,amount,category{'\n'}
-              JSON format: {`{ "transactions": [...] }`}
+              Supported: CSV, JSON, PDF, Excel, bank statements, and more
             </Text>
           </View>
 
-          <TextInput
-            style={styles.textArea}
-            placeholder="Paste your transaction data here..."
-            placeholderTextColor={theme.colors.gray}
-            value={csvContent}
-            onChangeText={setCsvContent}
-            multiline
-            numberOfLines={12}
-            textAlignVertical="top"
-          />
+          {/* File Picker Area */}
+          <TouchableOpacity
+            style={styles.filePickerArea}
+            onPress={handlePickFile}
+            activeOpacity={0.7}
+          >
+            {selectedFile ? (
+              <View style={styles.selectedFileContainer}>
+                <View style={styles.fileIconContainer}>
+                  <Ionicons name="document-text" size={32} color={theme.colors.hotCoral} />
+                </View>
+                <View style={styles.fileInfoContainer}>
+                  <Text style={styles.fileName} numberOfLines={1}>{selectedFile.name}</Text>
+                  <Text style={styles.fileSize}>{formatFileSize(selectedFile.size)}</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.removeFileButton}
+                  onPress={() => setSelectedFile(null)}
+                >
+                  <Ionicons name="close-circle" size={24} color={theme.colors.gray} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.emptyPickerContent}>
+                <View style={styles.uploadIconContainer}>
+                  <Ionicons name="cloud-upload-outline" size={48} color={theme.colors.hotCoral} />
+                </View>
+                <Text style={styles.uploadPrompt}>Tap to select a file</Text>
+                <Text style={styles.uploadHint}>or drag and drop</Text>
+              </View>
+            )}
+          </TouchableOpacity>
 
           <View style={styles.uploadButtonContainer}>
             <TouchableOpacity
-              style={[styles.continueButton, (!csvContent.trim() || isUploading) && styles.buttonDisabled]}
+              style={[styles.continueButton, (!selectedFile || isUploading) && styles.buttonDisabled]}
               onPress={handleUpload}
               activeOpacity={0.8}
-              disabled={!csvContent.trim() || isUploading}
+              disabled={!selectedFile || isUploading}
             >
               {isUploading ? (
                 <ActivityIndicator color={theme.colors.white} />
@@ -462,17 +524,70 @@ const styles = StyleSheet.create({
     color: theme.colors.deepTeal,
     lineHeight: 18,
   },
-  textArea: {
+  filePickerArea: {
     backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
-    fontSize: 14,
-    color: theme.colors.deepNavy,
-    minHeight: 200,
-    maxHeight: 300,
-    borderWidth: 1,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 2,
     borderColor: theme.colors.lightGray,
-    fontFamily: 'monospace',
+    borderStyle: 'dashed',
+    minHeight: 180,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
+  },
+  emptyPickerContent: {
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+  },
+  uploadIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 79, 64, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  uploadPrompt: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.deepNavy,
+    marginBottom: theme.spacing.xs,
+  },
+  uploadHint: {
+    fontSize: 14,
+    color: theme.colors.gray,
+  },
+  selectedFileContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: theme.spacing.lg,
+    width: '100%',
+  },
+  fileIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: 'rgba(255, 79, 64, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: theme.spacing.md,
+  },
+  fileInfoContainer: {
+    flex: 1,
+  },
+  fileName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.deepNavy,
+    marginBottom: 4,
+  },
+  fileSize: {
+    fontSize: 14,
+    color: theme.colors.gray,
+  },
+  removeFileButton: {
+    padding: theme.spacing.sm,
   },
   uploadButtonContainer: {
     marginTop: theme.spacing.lg,
