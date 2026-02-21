@@ -4,61 +4,21 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
   Dimensions,
+  ActivityIndicator,
+  TextInput,
+  ScrollView,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../components/theme';
+import { setUseUploadedData } from '../services/backendApi';
 
 const { width } = Dimensions.get('window');
 
-/**
- * Bank type definition
- */
-interface Bank {
-  id: string;
-  name: string;
-  iconLetter: string;
-  iconColor: string;
-}
-
-/**
- * Available banks for connection
- */
-const BANKS: Bank[] = [
-  {
-    id: 'monzo',
-    name: 'Monzo',
-    iconLetter: 'M',
-    iconColor: '#FF4F40',
-  },
-  {
-    id: 'revolut',
-    name: 'Revolut',
-    iconLetter: 'R',
-    iconColor: '#0666EB',
-  },
-  {
-    id: 'aib',
-    name: 'AIB',
-    iconLetter: 'A',
-    iconColor: '#6B2D5B',
-  },
-  {
-    id: 'boi',
-    name: 'Bank of Ireland',
-    iconLetter: 'B',
-    iconColor: '#00529B',
-  },
-  {
-    id: 'bos',
-    name: 'Bank of Scotland',
-    iconLetter: 'S',
-    iconColor: '#003399',
-  },
-];
+type DataSourceOption = 'demo' | 'upload';
 
 /**
  * Progress Step Indicator Component
@@ -95,7 +55,7 @@ const progressStyles = StyleSheet.create({
     marginBottom: theme.spacing.lg,
   },
   step: {
-    width: 40,
+    width: 60,
     height: 4,
     borderRadius: 2,
     backgroundColor: theme.colors.lightGray,
@@ -109,116 +69,107 @@ const progressStyles = StyleSheet.create({
 });
 
 /**
- * Bank List Item Component
+ * Data Source Option Card
  */
-const BankItem = ({
-  bank,
+const DataSourceCard = ({
+  title,
+  description,
+  icon,
   isSelected,
+  isRecommended,
   onSelect,
 }: {
-  bank: Bank;
+  title: string;
+  description: string;
+  icon: string;
   isSelected: boolean;
+  isRecommended?: boolean;
   onSelect: () => void;
 }) => {
   return (
     <TouchableOpacity
-      style={[bankItemStyles.container, isSelected && bankItemStyles.selected]}
+      style={[styles.optionCard, isSelected && styles.optionCardSelected]}
       onPress={onSelect}
       activeOpacity={0.7}
     >
-      <View
-        style={[
-          bankItemStyles.iconContainer,
-          { backgroundColor: bank.iconColor },
-        ]}
-      >
-        <Text style={bankItemStyles.iconLetter}>{bank.iconLetter}</Text>
+      {isRecommended && (
+        <View style={styles.recommendedBadge}>
+          <Text style={styles.recommendedText}>Recommended</Text>
+        </View>
+      )}
+      <View style={[styles.optionIcon, isSelected && styles.optionIconSelected]}>
+        <Ionicons
+          name={icon as any}
+          size={32}
+          color={isSelected ? theme.colors.white : theme.colors.hotCoral}
+        />
       </View>
-      <Text style={bankItemStyles.name}>{bank.name}</Text>
-      <View style={bankItemStyles.checkContainer}>
+      <Text style={styles.optionTitle}>{title}</Text>
+      <Text style={styles.optionDescription}>{description}</Text>
+      <View style={styles.checkContainer}>
         {isSelected ? (
-          <Ionicons
-            name="checkmark-circle"
-            size={24}
-            color={theme.colors.hotCoral}
-          />
+          <Ionicons name="checkmark-circle" size={28} color={theme.colors.hotCoral} />
         ) : (
-          <View style={bankItemStyles.emptyCheck} />
+          <View style={styles.emptyCheck} />
         )}
       </View>
     </TouchableOpacity>
   );
 };
 
-const bankItemStyles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.sm,
-    ...theme.cardShadow,
-  },
-  selected: {
-    borderWidth: 2,
-    borderColor: theme.colors.hotCoral,
-  },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: theme.borderRadius.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: theme.spacing.md,
-  },
-  iconLetter: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: theme.colors.white,
-  },
-  name: {
-    flex: 1,
-    ...theme.typography.body,
-    fontWeight: '600',
-    color: theme.colors.deepNavy,
-  },
-  checkContainer: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyCheck: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: theme.colors.lightGray,
-  },
-});
-
 /**
- * Onboarding Screen - Connect Bank Account
- *
- * Screen 6: Bank selection and secure connection flow
+ * Onboarding Screen - Data Source Selection
  */
 export default function OnboardingScreen() {
   const router = useRouter();
-  const [selectedBank, setSelectedBank] = useState<string | null>(null);
-  const currentStep = 1; // This is step 2 of 3 (0-indexed would be 1)
-  const totalSteps = 3;
+  const [step, setStep] = useState(0);
+  const [selectedSource, setSelectedSource] = useState<DataSourceOption | null>(null);
+  const [csvContent, setCsvContent] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
 
-  const handleBankSelect = (bankId: string) => {
-    setSelectedBank(bankId);
+  const totalSteps = 2;
+
+  const handleSourceSelect = (source: DataSourceOption) => {
+    setSelectedSource(source);
   };
 
-  const handleConnectSecurely = () => {
-    if (selectedBank) {
-      // In a real app, this would initiate the Open Banking flow
-      console.log(`Connecting to bank: ${selectedBank}`);
-      // Navigate to the next step or home
-      router.back();
+  const handleContinue = () => {
+    if (step === 0 && selectedSource) {
+      if (selectedSource === 'demo') {
+        // Use demo data - just go to app
+        setUseUploadedData(false);
+        router.replace('/(tabs)');
+      } else {
+        // Go to upload step
+        setStep(1);
+      }
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!csvContent.trim()) {
+      Alert.alert('Error', 'Please paste your transaction data');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      // Store the uploaded content and mark as using uploaded data
+      setUseUploadedData(true, csvContent);
+
+      // Navigate to app
+      router.replace('/(tabs)');
+    } catch (error) {
+      console.error('Upload error:', error);
+      Alert.alert('Error', 'Failed to process your data. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleBack = () => {
+    if (step > 0) {
+      setStep(step - 1);
     }
   };
 
@@ -226,79 +177,131 @@ export default function OnboardingScreen() {
     router.back();
   };
 
+  const handleSkipUpload = () => {
+    // User changed mind, use demo data instead
+    setUseUploadedData(false);
+    router.replace('/(tabs)');
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header with close button */}
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.closeButton}
-          onPress={handleClose}
-          activeOpacity={0.7}
-        >
+        {step > 0 ? (
+          <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
+            <Ionicons name="arrow-back" size={24} color={theme.colors.deepNavy} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.backButton} />
+        )}
+        <TouchableOpacity style={styles.closeButton} onPress={handleClose} activeOpacity={0.7}>
           <Ionicons name="close" size={24} color={theme.colors.deepNavy} />
         </TouchableOpacity>
       </View>
 
-      {/* Progress Indicator */}
-      <ProgressIndicator currentStep={currentStep} totalSteps={totalSteps} />
+      {/* Progress */}
+      <ProgressIndicator currentStep={step} totalSteps={totalSteps} />
 
-      {/* Title Section */}
-      <View style={styles.titleSection}>
-        <Text style={styles.title}>Connect Your Bank</Text>
-        <Text style={styles.subtitle}>
-          Select your bank to securely connect your account and start tracking
-          your spending.
-        </Text>
-      </View>
+      {step === 0 ? (
+        /* Step 1: Choose Data Source */
+        <>
+          <View style={styles.titleSection}>
+            <Text style={styles.title}>Get Started</Text>
+            <Text style={styles.subtitle}>
+              Choose how you want to use Prophit. You can always change this later.
+            </Text>
+          </View>
 
-      {/* Bank List */}
-      <FlatList
-        data={BANKS}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <BankItem
-            bank={item}
-            isSelected={selectedBank === item.id}
-            onSelect={() => handleBankSelect(item.id)}
+          <View style={styles.optionsContainer}>
+            <DataSourceCard
+              title="Use Demo Data"
+              description="Explore Prophit with realistic sample transactions. Perfect for testing features quickly."
+              icon="sparkles-outline"
+              isSelected={selectedSource === 'demo'}
+              isRecommended={true}
+              onSelect={() => handleSourceSelect('demo')}
+            />
+
+            <DataSourceCard
+              title="Upload Your Data"
+              description="Paste your transaction CSV or JSON to get personalized insights from our AI backend."
+              icon="cloud-upload-outline"
+              isSelected={selectedSource === 'upload'}
+              onSelect={() => handleSourceSelect('upload')}
+            />
+          </View>
+
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity
+              style={[styles.continueButton, !selectedSource && styles.buttonDisabled]}
+              onPress={handleContinue}
+              activeOpacity={0.8}
+              disabled={!selectedSource}
+            >
+              <Text style={styles.continueButtonText}>Continue</Text>
+              <Ionicons name="arrow-forward" size={20} color={theme.colors.white} />
+            </TouchableOpacity>
+          </View>
+        </>
+      ) : (
+        /* Step 2: Upload Data */
+        <ScrollView style={styles.uploadContainer} showsVerticalScrollIndicator={false}>
+          <View style={styles.titleSection}>
+            <Text style={styles.title}>Upload Data</Text>
+            <Text style={styles.subtitle}>
+              Paste your transaction data below. We support CSV or JSON format with date, description, amount, and category fields.
+            </Text>
+          </View>
+
+          <View style={styles.formatHint}>
+            <Ionicons name="information-circle-outline" size={20} color={theme.colors.deepTeal} />
+            <Text style={styles.formatHintText}>
+              CSV format: date,description,amount,category{'\n'}
+              JSON format: {`{ "transactions": [...] }`}
+            </Text>
+          </View>
+
+          <TextInput
+            style={styles.textArea}
+            placeholder="Paste your transaction data here..."
+            placeholderTextColor={theme.colors.gray}
+            value={csvContent}
+            onChangeText={setCsvContent}
+            multiline
+            numberOfLines={12}
+            textAlignVertical="top"
           />
-        )}
-        contentContainerStyle={styles.bankList}
-        showsVerticalScrollIndicator={false}
-      />
 
-      {/* Security Note */}
-      <View style={styles.securityNote}>
-        <Ionicons
-          name="shield-checkmark-outline"
-          size={20}
-          color={theme.colors.deepTeal}
-        />
-        <Text style={styles.securityText}>
-          Your data is encrypted and secure. We use Open Banking to read-only
-          access your transactions.
-        </Text>
-      </View>
+          <View style={styles.uploadButtonContainer}>
+            <TouchableOpacity
+              style={[styles.continueButton, (!csvContent.trim() || isUploading) && styles.buttonDisabled]}
+              onPress={handleUpload}
+              activeOpacity={0.8}
+              disabled={!csvContent.trim() || isUploading}
+            >
+              {isUploading ? (
+                <ActivityIndicator color={theme.colors.white} />
+              ) : (
+                <>
+                  <Ionicons name="cloud-upload" size={20} color={theme.colors.white} />
+                  <Text style={styles.continueButtonText}>Upload & Continue</Text>
+                </>
+              )}
+            </TouchableOpacity>
 
-      {/* Connect Button */}
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={[
-            styles.connectButton,
-            !selectedBank && styles.connectButtonDisabled,
-          ]}
-          onPress={handleConnectSecurely}
-          activeOpacity={0.8}
-          disabled={!selectedBank}
-        >
-          <Ionicons
-            name="lock-closed-outline"
-            size={20}
-            color={theme.colors.white}
-            style={styles.buttonIcon}
-          />
-          <Text style={styles.connectButtonText}>Connect Securely</Text>
-        </TouchableOpacity>
-      </View>
+            <TouchableOpacity style={styles.skipButton} onPress={handleSkipUpload} activeOpacity={0.7}>
+              <Text style={styles.skipButtonText}>Use demo data instead</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.securityNote}>
+            <Ionicons name="shield-checkmark-outline" size={20} color={theme.colors.deepTeal} />
+            <Text style={styles.securityText}>
+              Your data is processed securely and not stored permanently. We use it only to generate your personalized insights.
+            </Text>
+          </View>
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -310,9 +313,18 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...theme.cardShadow,
   },
   closeButton: {
     width: 40,
@@ -325,43 +337,92 @@ const styles = StyleSheet.create({
   },
   titleSection: {
     paddingHorizontal: theme.spacing.lg,
-    marginBottom: theme.spacing.lg,
+    marginBottom: theme.spacing.xl,
   },
   title: {
-    ...theme.typography.h1,
+    fontSize: 28,
+    fontWeight: '700',
     color: theme.colors.deepNavy,
     marginBottom: theme.spacing.sm,
   },
   subtitle: {
-    ...theme.typography.body,
+    fontSize: 16,
     color: theme.colors.textSecondary,
     lineHeight: 24,
   },
-  bankList: {
-    paddingHorizontal: theme.spacing.md,
-    paddingBottom: theme.spacing.md,
-  },
-  securityNote: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.md,
-    marginHorizontal: theme.spacing.md,
-    marginBottom: theme.spacing.md,
-    gap: theme.spacing.sm,
-  },
-  securityText: {
+  optionsContainer: {
     flex: 1,
-    ...theme.typography.small,
+    paddingHorizontal: theme.spacing.md,
+    gap: theme.spacing.md,
+  },
+  optionCard: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.lg,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    ...theme.cardShadow,
+  },
+  optionCardSelected: {
+    borderColor: theme.colors.hotCoral,
+  },
+  recommendedBadge: {
+    position: 'absolute',
+    top: -10,
+    right: 16,
+    backgroundColor: theme.colors.hotCoral,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.md,
+  },
+  recommendedText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.colors.white,
+  },
+  optionIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 79, 64, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  optionIconSelected: {
+    backgroundColor: theme.colors.hotCoral,
+  },
+  optionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.deepNavy,
+    marginBottom: theme.spacing.xs,
+  },
+  optionDescription: {
+    fontSize: 14,
     color: theme.colors.textSecondary,
-    lineHeight: 18,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: theme.spacing.md,
+  },
+  checkContainer: {
+    position: 'absolute',
+    top: theme.spacing.md,
+    left: theme.spacing.md,
+  },
+  emptyCheck: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: theme.colors.lightGray,
   },
   buttonContainer: {
     paddingHorizontal: theme.spacing.md,
-    paddingBottom: theme.spacing.md,
+    paddingBottom: theme.spacing.lg,
   },
-  connectButton: {
+  continueButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -369,18 +430,77 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.md,
     paddingHorizontal: theme.spacing.lg,
     borderRadius: theme.borderRadius.lg,
+    gap: theme.spacing.sm,
     ...theme.cardShadow,
   },
-  connectButtonDisabled: {
+  buttonDisabled: {
     backgroundColor: theme.colors.gray,
     opacity: 0.6,
   },
-  buttonIcon: {
-    marginRight: theme.spacing.sm,
-  },
-  connectButtonText: {
-    ...theme.typography.body,
+  continueButtonText: {
+    fontSize: 16,
     fontWeight: '700',
     color: theme.colors.white,
+  },
+  // Upload step styles
+  uploadContainer: {
+    flex: 1,
+    paddingHorizontal: theme.spacing.md,
+  },
+  formatHint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(0, 78, 96, 0.08)',
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  formatHintText: {
+    flex: 1,
+    fontSize: 13,
+    color: theme.colors.deepTeal,
+    lineHeight: 18,
+  },
+  textArea: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    fontSize: 14,
+    color: theme.colors.deepNavy,
+    minHeight: 200,
+    maxHeight: 300,
+    borderWidth: 1,
+    borderColor: theme.colors.lightGray,
+    fontFamily: 'monospace',
+  },
+  uploadButtonContainer: {
+    marginTop: theme.spacing.lg,
+    gap: theme.spacing.md,
+  },
+  skipButton: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing.sm,
+  },
+  skipButtonText: {
+    fontSize: 14,
+    color: theme.colors.gray,
+    textDecorationLine: 'underline',
+  },
+  securityNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    marginTop: theme.spacing.lg,
+    marginBottom: theme.spacing.xl,
+    gap: theme.spacing.sm,
+  },
+  securityText: {
+    flex: 1,
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    lineHeight: 18,
   },
 });

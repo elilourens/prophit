@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../../components/theme';
@@ -12,9 +13,25 @@ import { ToggleTabs, TabOption } from '../../components/ToggleTabs';
 import { ComparisonChart } from '../../components/ComparisonChart';
 import { CategoryDonut } from '../../components/CategoryDonut';
 import { SpendingAlert } from '../../components/SpendingAlert';
+import { getCachedUserDataset } from '../../services/backendApi';
 
-// Mock data for spending categories
-const CATEGORY_DATA = [
+// Color mapping for categories
+const CATEGORY_COLORS: { [key: string]: string } = {
+  'Groceries': theme.colors.hotCoral,
+  'Dining': theme.colors.midOrange,
+  'Coffee': theme.colors.neonYellow,
+  'Transport': theme.colors.deepTeal,
+  'Subscriptions': theme.colors.deepNavy,
+  'Shopping': theme.colors.hotCoral,
+  'Rent': theme.colors.deepNavy,
+  'Utilities': theme.colors.deepTeal,
+  'Food & Dining': theme.colors.hotCoral,
+  'Entertainment': theme.colors.midOrange,
+  'Bills': theme.colors.deepNavy,
+};
+
+// Default category data as fallback
+const DEFAULT_CATEGORY_DATA = [
   { name: 'Food & Dining', value: 145, color: theme.colors.hotCoral },
   { name: 'Transport', value: 67, color: theme.colors.deepTeal },
   { name: 'Entertainment', value: 89, color: theme.colors.midOrange },
@@ -22,8 +39,8 @@ const CATEGORY_DATA = [
   { name: 'Bills', value: 210, color: theme.colors.deepNavy },
 ];
 
-// Mock data for comparison chart
-const COMPARISON_DATA = [
+// Default comparison data as fallback
+const DEFAULT_COMPARISON_DATA = [
   { label: 'Mon', thisWeek: 45, lastWeek: 38 },
   { label: 'Tue', thisWeek: 32, lastWeek: 42 },
   { label: 'Wed', thisWeek: 58, lastWeek: 35 },
@@ -33,8 +50,8 @@ const COMPARISON_DATA = [
   { label: 'Sun', thisWeek: 65, lastWeek: 55 },
 ];
 
-// Mock alerts data
-const ALERTS_DATA = [
+// Default alerts data as fallback
+const DEFAULT_ALERTS_DATA = [
   {
     category: 'Entertainment',
     percentageChange: 40,
@@ -54,21 +71,209 @@ const ALERTS_DATA = [
  *
  * Screen for viewing transaction history and past spending including:
  * - Toggle tabs (Week/Month/Year)
- * - This Week vs Last Week comparison chart
+ * - This Period vs Last Period comparison chart
  * - Category Breakdown donut chart
  * - Unusual Spike Alerts
  */
 export default function HistoryScreen() {
   const [activeTab, setActiveTab] = useState<TabOption>('week');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleTabChange = (tab: TabOption) => {
     setActiveTab(tab);
   };
 
-  // Calculate total spending
-  const totalThisWeek = COMPARISON_DATA.reduce((sum, day) => sum + day.thisWeek, 0);
-  const totalLastWeek = COMPARISON_DATA.reduce((sum, day) => sum + day.lastWeek, 0);
-  const weekDifference = ((totalThisWeek - totalLastWeek) / totalLastWeek * 100).toFixed(0);
+  // Get user's transaction data
+  const dataset = getCachedUserDataset();
+  const transactions = dataset?.transactions || [];
+
+  // Calculate data based on selected time period
+  const { categoryData, comparisonData, alertsData, totalThis, totalLast } = useMemo(() => {
+    const now = new Date('2026-02-21');
+    let periodDays: number;
+    let labels: string[];
+    let periodCount: number;
+
+    if (activeTab === 'week') {
+      periodDays = 7;
+      labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      periodCount = 7;
+    } else if (activeTab === 'month') {
+      periodDays = 30;
+      labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+      periodCount = 4;
+    } else {
+      periodDays = 365;
+      // Generate labels for last 12 months (rolling window)
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      labels = [];
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now);
+        d.setMonth(d.getMonth() - i);
+        labels.push(monthNames[d.getMonth()]);
+      }
+      periodCount = 12;
+    }
+
+    // Filter transactions for this period and last period
+    const thisPeriodStart = new Date(now);
+    thisPeriodStart.setDate(thisPeriodStart.getDate() - periodDays);
+    const lastPeriodStart = new Date(thisPeriodStart);
+    lastPeriodStart.setDate(lastPeriodStart.getDate() - periodDays);
+
+    const thisPeriodTxns = transactions.filter(t => {
+      const d = new Date(t.date);
+      return t.amount < 0 && d >= thisPeriodStart && d <= now;
+    });
+
+    const lastPeriodTxns = transactions.filter(t => {
+      const d = new Date(t.date);
+      return t.amount < 0 && d >= lastPeriodStart && d < thisPeriodStart;
+    });
+
+    // Category breakdown for this period
+    const categoryTotals: { [cat: string]: number } = {};
+    thisPeriodTxns.forEach(t => {
+      if (t.category !== 'Income') {
+        categoryTotals[t.category] = (categoryTotals[t.category] || 0) + Math.abs(t.amount);
+      }
+    });
+
+    const catData = Object.entries(categoryTotals)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([name, value]) => ({
+        name,
+        value: Math.round(value),
+        color: CATEGORY_COLORS[name] || theme.colors.gray,
+      }));
+
+    // Comparison data
+    const compData: { label: string; thisWeek: number; lastWeek: number }[] = [];
+
+    for (let i = 0; i < periodCount; i++) {
+      let thisAmount = 0;
+      let lastAmount = 0;
+
+      if (activeTab === 'week') {
+        // Daily breakdown
+        const targetDay = (now.getDay() + 7 - periodDays + i + 1) % 7;
+        thisPeriodTxns.forEach(t => {
+          const d = new Date(t.date);
+          if (d.getDay() === targetDay) thisAmount += Math.abs(t.amount);
+        });
+        lastPeriodTxns.forEach(t => {
+          const d = new Date(t.date);
+          if (d.getDay() === targetDay) lastAmount += Math.abs(t.amount);
+        });
+      } else if (activeTab === 'month') {
+        // Weekly breakdown
+        const weekStart = new Date(thisPeriodStart);
+        weekStart.setDate(weekStart.getDate() + (i * 7));
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 7);
+
+        thisPeriodTxns.forEach(t => {
+          const d = new Date(t.date);
+          if (d >= weekStart && d < weekEnd) thisAmount += Math.abs(t.amount);
+        });
+
+        const lastWeekStart = new Date(lastPeriodStart);
+        lastWeekStart.setDate(lastWeekStart.getDate() + (i * 7));
+        const lastWeekEnd = new Date(lastWeekStart);
+        lastWeekEnd.setDate(lastWeekEnd.getDate() + 7);
+
+        lastPeriodTxns.forEach(t => {
+          const d = new Date(t.date);
+          if (d >= lastWeekStart && d < lastWeekEnd) lastAmount += Math.abs(t.amount);
+        });
+      } else {
+        // Monthly breakdown - compare last 12 months vs previous 12 months
+        // i=0 is 12 months ago, i=11 is current month
+        const thisMonthDate = new Date(now);
+        thisMonthDate.setMonth(thisMonthDate.getMonth() - (11 - i));
+        const thisMonth = thisMonthDate.getMonth();
+        const thisYear = thisMonthDate.getFullYear();
+
+        const lastMonthDate = new Date(thisMonthDate);
+        lastMonthDate.setFullYear(lastMonthDate.getFullYear() - 1);
+        const lastMonth = lastMonthDate.getMonth();
+        const lastYear = lastMonthDate.getFullYear();
+
+        transactions.forEach(t => {
+          const d = new Date(t.date);
+          if (t.amount < 0 && d.getMonth() === thisMonth && d.getFullYear() === thisYear) {
+            thisAmount += Math.abs(t.amount);
+          }
+          if (t.amount < 0 && d.getMonth() === lastMonth && d.getFullYear() === lastYear) {
+            lastAmount += Math.abs(t.amount);
+          }
+        });
+      }
+
+      compData.push({
+        label: labels[i],
+        thisWeek: Math.round(thisAmount),
+        lastWeek: Math.round(lastAmount),
+      });
+    }
+
+    // Calculate totals
+    const totalThis = thisPeriodTxns.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    const totalLast = lastPeriodTxns.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+    // Generate alerts based on comparison
+    const alerts: typeof DEFAULT_ALERTS_DATA = [];
+    const change = totalLast > 0 ? ((totalThis - totalLast) / totalLast) * 100 : 0;
+
+    if (change > 10) {
+      alerts.push({
+        category: 'Spending',
+        percentageChange: Math.round(change),
+        message: `Spending up ${Math.round(change)}% vs last ${activeTab}`,
+        severity: 'warning',
+      });
+    } else if (change < -10) {
+      alerts.push({
+        category: 'Savings',
+        percentageChange: Math.round(Math.abs(change)),
+        message: `Spending down ${Math.round(Math.abs(change))}% - great progress!`,
+        severity: 'info',
+      });
+    }
+
+    // Find biggest category change
+    if (catData.length > 0) {
+      const topCat = catData[0];
+      alerts.push({
+        category: topCat.name,
+        percentageChange: Math.round((topCat.value / totalThis) * 100),
+        message: `${topCat.name} is ${Math.round((topCat.value / totalThis) * 100)}% of your spending`,
+        severity: 'info',
+      });
+    }
+
+    if (alerts.length === 0) {
+      alerts.push({
+        category: 'Status',
+        percentageChange: 0,
+        message: 'Spending patterns are within normal range',
+        severity: 'info',
+      });
+    }
+
+    return {
+      categoryData: catData.length > 0 ? catData : DEFAULT_CATEGORY_DATA,
+      comparisonData: compData,
+      alertsData: alerts,
+      totalThis: Math.round(totalThis),
+      totalLast: Math.round(totalLast),
+    };
+  }, [activeTab, transactions]);
+
+  const periodDifference = totalLast > 0
+    ? ((totalThis - totalLast) / totalLast * 100).toFixed(0)
+    : '0';
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -93,28 +298,30 @@ export default function HistoryScreen() {
         <View style={styles.summaryRow}>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>This {activeTab}</Text>
-            <Text style={styles.summaryValue}>€{totalThisWeek}</Text>
+            <Text style={styles.summaryValue}>€{totalThis.toLocaleString()}</Text>
           </View>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Last {activeTab}</Text>
-            <Text style={styles.summaryValue}>€{totalLastWeek}</Text>
+            <Text style={styles.summaryValue}>€{totalLast.toLocaleString()}</Text>
           </View>
           <View style={[styles.summaryCard, styles.changeCard]}>
             <Text style={styles.summaryLabel}>Change</Text>
             <Text style={[
               styles.changeValue,
-              { color: Number(weekDifference) > 0 ? theme.colors.hotCoral : theme.colors.deepTeal }
+              { color: Number(periodDifference) > 0 ? theme.colors.hotCoral : theme.colors.deepTeal }
             ]}>
-              {Number(weekDifference) > 0 ? '+' : ''}{weekDifference}%
+              {Number(periodDifference) > 0 ? '+' : ''}{periodDifference}%
             </Text>
           </View>
         </View>
 
-        {/* This Week vs Last Week Section */}
+        {/* This Period vs Last Period Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>This Week vs Last Week</Text>
+          <Text style={styles.sectionTitle}>
+            This {activeTab === 'week' ? 'Week' : activeTab === 'month' ? 'Month' : 'Year'} vs Last {activeTab === 'week' ? 'Week' : activeTab === 'month' ? 'Month' : 'Year'}
+          </Text>
           <View style={styles.card}>
-            <ComparisonChart data={COMPARISON_DATA} />
+            <ComparisonChart data={comparisonData} />
           </View>
         </View>
 
@@ -122,14 +329,14 @@ export default function HistoryScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Category Breakdown</Text>
           <View style={styles.card}>
-            <CategoryDonut data={CATEGORY_DATA} />
+            <CategoryDonut data={categoryData} />
           </View>
         </View>
 
-        {/* Unusual Spike Alerts Section */}
+        {/* Spending Alerts Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Unusual Spike Alerts</Text>
-          {ALERTS_DATA.map((alert, index) => (
+          <Text style={styles.sectionTitle}>Spending Insights</Text>
+          {alertsData.map((alert, index) => (
             <SpendingAlert
               key={index}
               category={alert.category}
@@ -225,5 +432,15 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 100,
+  },
+  loadingContainer: {
+    padding: theme.spacing.xxl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: theme.spacing.md,
+    fontSize: 14,
+    color: theme.colors.gray,
   },
 });

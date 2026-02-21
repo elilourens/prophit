@@ -15,7 +15,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../components/theme';
 import { usePro } from '../../contexts/ProContext';
+import { useUserData } from '../../contexts/UserDataContext';
 import { LockedFeatureModal, ProBadge } from '../../components/LockedFeatureModal';
+import {
+  getBudgetTips,
+  getRunwayAnalysis,
+  getCachedUserDataset,
+} from '../../services/backendApi';
 
 /**
  * Scenario Simulator Screen - Dynamic What-If Questions
@@ -47,39 +53,102 @@ const SUGGESTED_QUESTIONS = [
   'Start saving €200/month',
 ];
 
-// Mock AI response generator
+// Get AI-generated response from backend API
+const getAIResponse = async (question: string): Promise<string> => {
+  try {
+    const lowerQuestion = question.toLowerCase();
+    const dataset = getCachedUserDataset();
+    const summary = dataset?.summary || { savings: 18500, avgDaily: 72, monthlyIncome: 3500, topCategories: ['Rent', 'Groceries', 'Dining'] };
+
+    // Use runway analysis for job-quit questions
+    if (lowerQuestion.includes('quit') && lowerQuestion.includes('job')) {
+      const financialSummary = `Savings: €${summary.savings}. Monthly rent €1,200, groceries €${Math.round(summary.avgDaily * 30)}, subscriptions €67.`;
+      const result = await getRunwayAnalysis(financialSummary);
+      return result.analysis;
+    }
+
+    // Use budget tips for other financial questions
+    const spendingPatterns = `Monthly income: €${summary.monthlyIncome}. Average daily spending: €${summary.avgDaily.toFixed(2)}. Top categories: ${summary.topCategories.join(', ')}. Question: ${question}`;
+    return await getBudgetTips(spendingPatterns);
+  } catch (error) {
+    console.error('Failed to get AI response:', error);
+    return '';
+  }
+};
+
+// Parse AI response to enhance the mock response
+const parseAIInsights = (aiResponse: string, baseResponse: Omit<WhatIfResponse, 'id' | 'timestamp' | 'isExpanded'>): Omit<WhatIfResponse, 'id' | 'timestamp' | 'isExpanded'> => {
+  if (!aiResponse) return baseResponse;
+
+  // Try to extract savings amount from AI response
+  const savingsMatch = aiResponse.match(/€?(\d+(?:,\d{3})*(?:\.\d{2})?)\s*(?:per\s*)?(?:month|monthly|year|annually)/i);
+  if (savingsMatch) {
+    const amount = parseFloat(savingsMatch[1].replace(/,/g, ''));
+    if (!isNaN(amount)) {
+      baseResponse.savingsAmount = amount;
+    }
+  }
+
+  // Use AI response as details if available
+  if (aiResponse.length > 50) {
+    baseResponse.details = aiResponse.replace(/[#*`]/g, '').trim().slice(0, 500);
+  }
+
+  return baseResponse;
+};
+
+// Local fallback response generator
 const generateMockResponse = (question: string): Omit<WhatIfResponse, 'id' | 'timestamp' | 'isExpanded'> => {
   const lowerQuestion = question.toLowerCase();
+  const dataset = getCachedUserDataset();
+  const summary = dataset?.summary || {
+    savings: 18500,
+    avgMonthly: 2100,
+    monthlyIncome: 3500,
+    runwayMonths: 8.8,
+    topCategories: ['Rent', 'Groceries', 'Dining'],
+  };
+
+  const monthlyExpenses = Math.round(summary.avgMonthly);
+  const savings = summary.savings;
+  const runway = summary.runwayMonths?.toFixed(1) || (savings / monthlyExpenses).toFixed(1);
 
   if (lowerQuestion.includes('quit') && lowerQuestion.includes('job')) {
     return {
       question,
-      outcome: "Based on your current savings of €18,500 and monthly expenses of €2,100, you'd have a runway of 8.8 months before needing income again.",
+      outcome: `Based on your current savings of €${savings.toLocaleString()} and monthly expenses of €${monthlyExpenses.toLocaleString()}, you'd have a runway of ${runway} months before needing income again.`,
       savingsAmount: 0,
       savingsPeriod: '',
       isPositive: false,
-      beforeValue: 2100,
+      beforeValue: monthlyExpenses,
       afterValue: 0,
       beforeLabel: 'Monthly income',
       afterLabel: 'Monthly income',
       confidence: 87,
-      details: "Your emergency fund covers 8.8 months of expenses. Consider reducing discretionary spending to extend this to 11+ months. Your biggest expense categories are rent (€1,200) and food (€380). If you picked up freelance work at even 50% of your current salary, you could sustain indefinitely.",
+      details: `Your emergency fund covers ${runway} months of expenses. Consider reducing discretionary spending to extend this further. Your biggest expense categories are ${summary.topCategories.slice(0, 2).join(' and ')}. If you picked up freelance work at even 50% of your current salary, you could sustain indefinitely.`,
     };
   }
 
   if (lowerQuestion.includes('eating out') || lowerQuestion.includes('restaurants') || lowerQuestion.includes('food')) {
+    // Calculate actual dining spending from dataset
+    const diningTotal = dataset?.transactions
+      .filter(t => t.category === 'Dining' && t.amount < 0)
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0) || 4560;
+    const monthlyDining = Math.round(diningTotal / 12);
+    const savedAmount = Math.round(monthlyDining / 2);
+
     return {
       question,
-      outcome: "Cutting restaurant spending by 50% would save you €190/month based on your average dining spend of €380.",
-      savingsAmount: 190,
+      outcome: `Cutting restaurant spending by 50% would save you €${savedAmount}/month based on your average dining spend of €${monthlyDining}.`,
+      savingsAmount: savedAmount,
       savingsPeriod: 'month',
       isPositive: true,
-      beforeValue: 380,
-      afterValue: 190,
+      beforeValue: monthlyDining,
+      afterValue: savedAmount,
       beforeLabel: 'Current dining',
       afterLabel: 'After cutting',
       confidence: 92,
-      details: "You eat out an average of 12 times per month, spending €31.67 per meal. Reducing to 6 meals out would save €2,280 annually. This could fund a nice vacation or add 1.1 months to your emergency runway.",
+      details: `Reducing dining out by half would save €${savedAmount * 12} annually. This could fund a nice vacation or add ${(savedAmount / monthlyExpenses).toFixed(1)} months to your emergency runway.`,
     };
   }
 
@@ -116,18 +185,21 @@ const generateMockResponse = (question: string): Omit<WhatIfResponse, 'id' | 'ti
   }
 
   if (lowerQuestion.includes('saving') || lowerQuestion.includes('save') || lowerQuestion.includes('€200') || lowerQuestion.includes('200')) {
+    const afterOneYear = Math.round(savings + 2520);
+    const addedRunway = (2520 / monthlyExpenses).toFixed(1);
+
     return {
       question,
-      outcome: "Saving €200/month would grow to €2,520 in one year with 5% interest, adding 1.2 months to your runway.",
+      outcome: `Saving €200/month would grow to €2,520 in one year with 5% interest, adding ${addedRunway} months to your runway.`,
       savingsAmount: 2520,
       savingsPeriod: 'year',
       isPositive: true,
-      beforeValue: 18500,
-      afterValue: 21020,
+      beforeValue: savings,
+      afterValue: afterOneYear,
       beforeLabel: 'Current savings',
       afterLabel: 'After 1 year',
       confidence: 95,
-      details: "At €200/month with 5% annual interest compounded monthly, you'd have €2,520 after 1 year, €5,155 after 2 years, and €7,912 after 3 years. This could come from cutting dining (€95), subscriptions (€45), and impulse shopping (€60).",
+      details: "At €200/month with 5% annual interest compounded monthly, you'd have €2,520 after 1 year, €5,155 after 2 years, and €7,912 after 3 years. This could come from cutting dining, subscriptions, and impulse shopping.",
     };
   }
 
@@ -180,14 +252,16 @@ const generateMockResponse = (question: string): Omit<WhatIfResponse, 'id' | 'ti
   }
 
   // Generic response for other questions
+  const estimatedSavings = Math.round(monthlyExpenses * 0.06); // ~6% savings estimate
+
   return {
     question,
-    outcome: "Based on your spending patterns, this change could save you approximately €120/month if implemented consistently.",
-    savingsAmount: 120,
+    outcome: `Based on your spending patterns, this change could save you approximately €${estimatedSavings}/month if implemented consistently.`,
+    savingsAmount: estimatedSavings,
     savingsPeriod: 'month',
     isPositive: true,
-    beforeValue: 2100,
-    afterValue: 1980,
+    beforeValue: monthlyExpenses,
+    afterValue: monthlyExpenses - estimatedSavings,
     beforeLabel: 'Current spend',
     afterLabel: 'Projected',
     confidence: 65,
@@ -370,6 +444,7 @@ const ResponseCard: React.FC<{
 
 export default function SimulatorScreen() {
   const { isPro } = usePro();
+  const { isDataLoaded } = useUserData();
   const [showLockedModal, setShowLockedModal] = useState(false);
   const [question, setQuestion] = useState('');
   const [isThinking, setIsThinking] = useState(false);
@@ -389,23 +464,41 @@ export default function SimulatorScreen() {
 
     setIsThinking(true);
 
-    // Simulate AI thinking time
-    await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 1000));
+    try {
+      // Get base mock response for structure
+      const mockResponse = generateMockResponse(question);
 
-    const mockResponse = generateMockResponse(question);
-    const newResponse: WhatIfResponse = {
-      ...mockResponse,
-      id: Date.now().toString(),
-      timestamp: new Date(),
-      isExpanded: false,
-    };
+      // Try to enhance with AI response from backend
+      const aiResponse = await getAIResponse(question);
+      const enhancedResponse = parseAIInsights(aiResponse, mockResponse);
 
-    setResponses(prev => [newResponse, ...prev]);
-    setQuestion('');
-    setIsThinking(false);
+      const newResponse: WhatIfResponse = {
+        ...enhancedResponse,
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        isExpanded: false,
+      };
 
-    if (!isPro) {
-      setFreeQuestionsUsed(prev => prev + 1);
+      setResponses(prev => [newResponse, ...prev]);
+      setQuestion('');
+
+      if (!isPro) {
+        setFreeQuestionsUsed(prev => prev + 1);
+      }
+    } catch (error) {
+      console.error('Error generating response:', error);
+      // Fall back to pure mock response
+      const mockResponse = generateMockResponse(question);
+      const newResponse: WhatIfResponse = {
+        ...mockResponse,
+        id: Date.now().toString(),
+        timestamp: new Date(),
+        isExpanded: false,
+      };
+      setResponses(prev => [newResponse, ...prev]);
+      setQuestion('');
+    } finally {
+      setIsThinking(false);
     }
   };
 
@@ -523,7 +616,7 @@ export default function SimulatorScreen() {
           )}
 
           {/* Empty State */}
-          {responses.length === 0 && !isThinking && (
+          {responses.length === 0 && !isThinking && isDataLoaded && (
             <View style={styles.emptyState}>
               <View style={styles.emptyIcon}>
                 <Ionicons name="bulb-outline" size={40} color={theme.colors.hotCoral} />
