@@ -79,6 +79,19 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="arena"
+        options={{
+          title: 'Arena',
+          tabBarIcon: ({ focused, color, size }: TabIconProps) => (
+            <Ionicons
+              name={focused ? 'trophy' : 'trophy-outline'}
+              size={24}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="simulator"
         options={{
           title: 'Simulator',

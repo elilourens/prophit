@@ -1,195 +1,148 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Linking, Clipboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../components/theme';
 import { usePro } from '../../contexts/ProContext';
-import { LockedFeatureModal, ProBadge } from '../../components/LockedFeatureModal';
+import { useArena } from '../../contexts/ArenaContext';
+import { useSolana } from '../../contexts/SolanaContext';
 
 /**
- * Weekly Recap Screen (Profile Tab)
+ * Account Screen (Profile Tab)
  *
- * Shows AI prediction accuracy and weekly highlights:
- * - Large circular accuracy indicator
- * - Predicted vs Actual comparison
- * - Weekly highlights with checkmarks
- * - AI insights card
+ * Shows user account information and stats:
+ * - Profile card with avatar and username
+ * - Account facts (date joined, stats)
+ * - Subscription status
+ * - Sign out option
  */
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-// Accuracy Ring Component
-interface AccuracyRingProps {
-  percentage: number;
-  label?: string;
+// Stat Item Component
+interface StatItemProps {
+  icon: string;
+  label: string;
+  value: string | number;
+  color?: string;
 }
 
-const AccuracyRing: React.FC<AccuracyRingProps> = ({
-  percentage,
-  label = 'Prediction Accuracy',
-}) => {
-  const size = Math.min(SCREEN_WIDTH * 0.45, 160);
-  const STROKE_WIDTH = 12;
-  const RADIUS = (size - STROKE_WIDTH) / 2;
-  const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-
-  const clampedPercentage = Math.min(Math.max(percentage, 0), 100);
-  const progress = clampedPercentage / 100;
-  const strokeDashoffset = CIRCUMFERENCE * (1 - progress);
-
+const StatItem: React.FC<StatItemProps> = ({ icon, label, value, color = theme.colors.deepTeal }) => {
   return (
-    <View style={styles.ringContainer}>
-      <Svg width={size} height={size}>
-        <Defs>
-          <LinearGradient id="accuracyGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <Stop offset="0%" stopColor={theme.colors.neonYellow} />
-            <Stop offset="100%" stopColor={theme.colors.deepTeal} />
-          </LinearGradient>
-        </Defs>
-
-        {/* Background circle */}
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={RADIUS}
-          stroke={theme.colors.lightGray}
-          strokeWidth={STROKE_WIDTH}
-          fill="transparent"
-        />
-
-        {/* Progress circle */}
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={RADIUS}
-          stroke="url(#accuracyGradient)"
-          strokeWidth={STROKE_WIDTH}
-          fill="transparent"
-          strokeDasharray={CIRCUMFERENCE}
-          strokeDashoffset={strokeDashoffset}
-          strokeLinecap="round"
-          transform={`rotate(-90, ${size / 2}, ${size / 2})`}
-        />
-      </Svg>
-
-      <View style={styles.ringTextContainer}>
-        <Text style={styles.ringPercentage}>{Math.round(clampedPercentage)}%</Text>
-        <Text style={styles.ringLabel}>{label}</Text>
+    <View style={styles.statItem}>
+      <View style={[styles.statIconContainer, { backgroundColor: color + '15' }]}>
+        <Text style={styles.statIcon}>{icon}</Text>
+      </View>
+      <View style={styles.statContent}>
+        <Text style={styles.statValue}>{value}</Text>
+        <Text style={styles.statLabel}>{label}</Text>
       </View>
     </View>
   );
 };
 
-// Prediction Comparison Component
-interface PredictionComparisonProps {
-  predicted: number;
-  actual: number;
+// Info Row Component
+interface InfoRowProps {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
 }
 
-const PredictionComparison: React.FC<PredictionComparisonProps> = ({
-  predicted,
-  actual,
-}) => {
-  const difference = actual - predicted;
-  const percentDiff = ((difference / predicted) * 100).toFixed(1);
-  const isOver = difference > 0;
-
+const InfoRow: React.FC<InfoRowProps> = ({ icon, label, value }) => {
   return (
-    <View style={styles.comparisonCard}>
-      <Text style={styles.comparisonTitle}>Predicted vs Actual</Text>
-      <View style={styles.comparisonRow}>
-        <View style={styles.comparisonColumn}>
-          <Text style={styles.comparisonLabel}>PREDICTED</Text>
-          <Text style={styles.comparisonPredicted}>€{predicted}</Text>
-        </View>
-        <Text style={styles.vsText}>vs</Text>
-        <View style={styles.comparisonColumn}>
-          <Text style={styles.comparisonLabel}>ACTUAL</Text>
-          <Text style={[styles.comparisonActual, isOver && styles.overBudget]}>
-            €{actual}
-          </Text>
-        </View>
+    <View style={styles.infoRow}>
+      <View style={styles.infoLeft}>
+        <Ionicons name={icon} size={20} color={theme.colors.textSecondary} />
+        <Text style={styles.infoLabel}>{label}</Text>
       </View>
-      <View style={[styles.diffContainer, isOver ? styles.diffOver : styles.diffUnder]}>
-        <Text style={[styles.diffText, isOver ? styles.diffTextOver : styles.diffTextUnder]}>
-          {isOver ? '+' : ''}€{Math.abs(difference)} ({isOver ? '+' : ''}{percentDiff}%)
-        </Text>
-        <Text style={styles.diffLabel}>
-          {isOver ? 'Over predicted spend' : 'Under predicted spend'}
-        </Text>
-      </View>
-    </View>
-  );
-};
-
-// Highlight Item Component
-interface HighlightItemProps {
-  text: string;
-  isPositive: boolean;
-}
-
-const HighlightItem: React.FC<HighlightItemProps> = ({ text, isPositive }) => {
-  return (
-    <View style={styles.highlightItem}>
-      <View style={[styles.highlightIcon, isPositive ? styles.positiveIcon : styles.negativeIcon]}>
-        <Text style={styles.iconText}>{isPositive ? '\u2713' : '\u2717'}</Text>
-      </View>
-      <Text style={styles.highlightText}>{text}</Text>
-    </View>
-  );
-};
-
-// Insight Card Component
-interface InsightCardProps {
-  insight: string;
-}
-
-const InsightCard: React.FC<InsightCardProps> = ({ insight }) => {
-  return (
-    <View style={styles.insightCard}>
-      <View style={styles.insightIconContainer}>
-        <Text style={styles.insightIcon}>{'\uD83D\uDCA1'}</Text>
-      </View>
-      <View style={styles.insightContent}>
-        <Text style={styles.insightTitle}>AI INSIGHT</Text>
-        <Text style={styles.insightText}>{insight}</Text>
-      </View>
+      <Text style={styles.infoValue}>{value}</Text>
     </View>
   );
 };
 
 export default function ProfileScreen() {
   const { isPro } = usePro();
-  const [showLockedModal, setShowLockedModal] = useState(false);
+  const { user, isAuthenticated, signOut, myArenas } = useArena();
+  const { wallet, requestAirdrop, refreshBalance, getExplorerAddressUrl } = useSolana();
+  const [isTopping, setIsTopping] = useState(false);
 
-  // Hardcoded data for weekly recap
-  const accuracyPercentage = 78;
-  const predictedSpend = 485;
-  const actualSpend = 512;
-
-  const highlights = [
-    { text: 'Correctly predicted 3/4 coffee runs', isPositive: true },
-    { text: 'Caught Friday drinks spending', isPositive: true },
-    { text: 'Missed grocery trip on Tuesday', isPositive: false },
-  ];
-
-  const aiInsight =
-    'Your spending was 6% higher than predicted. Rain on Thursday led to 2 unexpected Uber rides.';
-
-  const handleLockedPress = () => {
-    setShowLockedModal(true);
+  const handleTopUp = async () => {
+    setIsTopping(true);
+    try {
+      const result = await requestAirdrop();
+      if (result.success) {
+        await refreshBalance();
+        Alert.alert('Success', 'Added 0.15 SOL to your wallet!');
+      } else {
+        Alert.alert('Error', result.error || 'Failed to top up');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to top up wallet');
+    } finally {
+      setIsTopping(false);
+    }
   };
+
+  const handleCopyAddress = () => {
+    if (wallet) {
+      Clipboard.setString(wallet.publicKey);
+      Alert.alert('Copied', 'Wallet address copied to clipboard');
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            await signOut();
+            router.replace('/login');
+          },
+        },
+      ]
+    );
+  };
+
+  // Mock stats - in real app these would come from backend
+  const stats = {
+    predictionsThisWeek: 12,
+    currentStreak: 5,
+    totalArenas: myArenas.length,
+    winsCount: 3,
+  };
+
+  // Format date joined
+  const dateJoined = user?.created_at
+    ? new Date(user.created_at).toLocaleDateString('en-US', {
+        month: 'long',
+        year: 'numeric',
+      })
+    : 'February 2026';
+
+  if (!isAuthenticated || !user) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.notLoggedIn}>
+          <Text style={styles.notLoggedInEmoji}>👤</Text>
+          <Text style={styles.notLoggedInTitle}>Not Signed In</Text>
+          <Text style={styles.notLoggedInText}>Sign in to view your account</Text>
+          <TouchableOpacity
+            style={styles.signInButton}
+            onPress={() => router.push('/login')}
+          >
+            <Text style={styles.signInButtonText}>Sign In</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <LockedFeatureModal
-        visible={showLockedModal}
-        onClose={() => setShowLockedModal(false)}
-        featureName="Weekly Recap"
-        featureDescription="Get detailed insights on your prediction accuracy and spending patterns every week."
-      />
-
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -197,60 +150,152 @@ export default function ProfileScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.headerRow}>
-            <Text style={styles.title}>Weekly Recap</Text>
-            {!isPro && <ProBadge style={styles.proBadge} />}
-          </View>
-          <Text style={styles.subtitle}>Feb 14 - Feb 21, 2026</Text>
+          <Text style={styles.title}>Account</Text>
         </View>
 
-        {/* Locked Overlay for non-Pro users */}
-        {!isPro ? (
-          <TouchableOpacity style={styles.lockedContainer} onPress={handleLockedPress} activeOpacity={0.9}>
-            <View style={styles.lockedOverlay}>
-              <View style={styles.lockedContent}>
-                <View style={styles.lockedIconContainer}>
-                  <Ionicons name="lock-closed" size={32} color={theme.colors.white} />
-                </View>
-                <Text style={styles.lockedTitle}>Unlock Weekly Recap</Text>
-                <Text style={styles.lockedText}>See how accurate your predictions were and get AI insights</Text>
-                <View style={styles.unlockButton}>
-                  <Text style={styles.unlockButtonText}>Upgrade to Pro</Text>
-                </View>
+        {/* Profile Card */}
+        <View style={styles.profileCard}>
+          <View style={styles.avatarLarge}>
+            <Text style={styles.avatarLargeEmoji}>{user.avatar_url || '😀'}</Text>
+          </View>
+          <Text style={styles.username}>{user.username}</Text>
+          <View style={styles.subscriptionBadge}>
+            <Text style={[styles.subscriptionText, isPro && styles.subscriptionTextPro]}>
+              {isPro ? '⭐ Pro Member' : 'Free Plan'}
+            </Text>
+          </View>
+          {!isPro && (
+            <TouchableOpacity
+              style={styles.upgradeButton}
+              onPress={() => router.push('/upgrade')}
+            >
+              <Text style={styles.upgradeButtonText}>Upgrade to Pro</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Stats Grid */}
+        <View style={styles.statsCard}>
+          <Text style={styles.sectionTitle}>Your Stats</Text>
+          <View style={styles.statsGrid}>
+            <StatItem
+              icon="🎯"
+              label="Predictions this week"
+              value={stats.predictionsThisWeek}
+              color={theme.colors.deepTeal}
+            />
+            <StatItem
+              icon="🔥"
+              label="Day streak"
+              value={stats.currentStreak}
+              color={theme.colors.hotCoral}
+            />
+            <StatItem
+              icon="🏆"
+              label="Arenas joined"
+              value={stats.totalArenas}
+              color={theme.colors.midOrange}
+            />
+            <StatItem
+              icon="👑"
+              label="Arena wins"
+              value={stats.winsCount}
+              color={theme.colors.neonYellow}
+            />
+          </View>
+        </View>
+
+        {/* Solana Wallet */}
+        {wallet && (
+          <View style={styles.walletCard}>
+            <View style={styles.walletHeader}>
+              <View style={styles.walletIconContainer}>
+                <Text style={styles.walletIcon}>◈</Text>
+              </View>
+              <View style={styles.walletInfo}>
+                <Text style={styles.walletTitle}>Solana Wallet</Text>
+                <TouchableOpacity onPress={handleCopyAddress}>
+                  <Text style={styles.walletAddress}>
+                    {wallet.publicKey.slice(0, 8)}...{wallet.publicKey.slice(-8)} (tap to copy)
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
 
-            {/* Blurred Preview */}
-            <View style={styles.blurredPreview}>
-              <AccuracyRing percentage={accuracyPercentage} />
-            </View>
-          </TouchableOpacity>
-        ) : (
-          <>
-            {/* AI Accuracy Score */}
-            <View style={styles.accuracySection}>
-              <AccuracyRing percentage={accuracyPercentage} />
+            <View style={styles.balanceSection}>
+              <Text style={styles.balanceLabel}>Balance</Text>
+              <Text style={styles.balanceAmount}>{wallet.balance.toFixed(6)} SOL</Text>
             </View>
 
-            {/* Predicted vs Actual */}
-            <PredictionComparison predicted={predictedSpend} actual={actualSpend} />
+            <TouchableOpacity
+              style={[styles.topUpButton, isTopping && styles.topUpButtonDisabled]}
+              onPress={handleTopUp}
+              disabled={isTopping}
+            >
+              {isTopping ? (
+                <ActivityIndicator color={theme.colors.white} size="small" />
+              ) : (
+                <>
+                  <Ionicons name="add-circle" size={20} color={theme.colors.white} />
+                  <Text style={styles.topUpButtonText}>Top Up (+0.15 SOL)</Text>
+                </>
+              )}
+            </TouchableOpacity>
 
-            {/* Weekly Highlights */}
-            <View style={styles.highlightsSection}>
-              <Text style={styles.sectionTitle}>Weekly Highlights</Text>
-              {highlights.map((highlight, index) => (
-                <HighlightItem
-                  key={index}
-                  text={highlight.text}
-                  isPositive={highlight.isPositive}
-                />
-              ))}
-            </View>
-
-            {/* AI Insight */}
-            <InsightCard insight={aiInsight} />
-          </>
+            <Text style={styles.walletDisclaimer}>Devnet SOL for Arena stakes</Text>
+          </View>
         )}
+
+        {/* Account Info */}
+        <View style={styles.infoCard}>
+          <Text style={styles.sectionTitle}>Account Info</Text>
+          <InfoRow
+            icon="calendar-outline"
+            label="Member since"
+            value={dateJoined}
+          />
+          <InfoRow
+            icon="person-outline"
+            label="Username"
+            value={user.username}
+          />
+          <InfoRow
+            icon="shield-checkmark-outline"
+            label="Account status"
+            value="Verified"
+          />
+        </View>
+
+        {/* Actions */}
+        <View style={styles.actionsCard}>
+          <TouchableOpacity style={styles.actionRow} onPress={() => router.push('/upgrade')}>
+            <View style={styles.actionLeft}>
+              <View style={[styles.actionIcon, { backgroundColor: theme.colors.neonYellow + '20' }]}>
+                <Ionicons name="star" size={20} color={theme.colors.deepNavy} />
+              </View>
+              <Text style={styles.actionText}>Manage Subscription</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={theme.colors.gray} />
+          </TouchableOpacity>
+
+          <View style={styles.actionDivider} />
+
+          <TouchableOpacity style={styles.actionRow} onPress={handleLogout}>
+            <View style={styles.actionLeft}>
+              <View style={[styles.actionIcon, { backgroundColor: theme.colors.hotCoral + '20' }]}>
+                <Ionicons name="log-out-outline" size={20} color={theme.colors.hotCoral} />
+              </View>
+              <Text style={[styles.actionText, styles.logoutText]}>Sign Out</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={theme.colors.gray} />
+          </TouchableOpacity>
+        </View>
+
+        {/* App Version */}
+        <Text style={styles.versionText}>Prophit v1.0.0</Text>
+
+        {/* Bottom spacing */}
+        <View style={styles.bottomSpacer} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -266,195 +311,75 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: theme.spacing.lg,
-    paddingBottom: theme.spacing.xxl,
   },
   header: {
     marginBottom: theme.spacing.lg,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
   },
   title: {
     fontSize: 32,
     fontWeight: '700',
     color: theme.colors.deepNavy,
-    marginBottom: theme.spacing.xs,
   },
-  proBadge: {
-    marginBottom: theme.spacing.xs,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-  },
-  // Locked State
-  lockedContainer: {
-    position: 'relative',
-    minHeight: 400,
-  },
-  lockedOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(17, 34, 49, 0.9)',
-    zIndex: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
+  // Profile Card
+  profileCard: {
+    backgroundColor: theme.colors.white,
     borderRadius: theme.borderRadius.lg,
-  },
-  lockedContent: {
-    alignItems: 'center',
     padding: theme.spacing.xl,
-  },
-  lockedIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: theme.colors.hotCoral,
-    justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: theme.spacing.lg,
+    ...theme.cardShadow,
+  },
+  avatarLarge: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: theme.colors.softWhite,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: theme.spacing.md,
   },
-  lockedTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: theme.colors.white,
-    marginBottom: theme.spacing.sm,
+  avatarLargeEmoji: {
+    fontSize: 44,
   },
-  lockedText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
-    marginBottom: theme.spacing.lg,
-    lineHeight: 20,
-  },
-  unlockButton: {
-    backgroundColor: theme.colors.hotCoral,
-    paddingHorizontal: theme.spacing.xl,
-    paddingVertical: theme.spacing.md,
-    borderRadius: theme.borderRadius.md,
-  },
-  unlockButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: theme.colors.white,
-  },
-  blurredPreview: {
-    opacity: 0.2,
-    alignItems: 'center',
-    paddingTop: theme.spacing.xl,
-  },
-  // Accuracy Ring Styles
-  accuracySection: {
-    alignItems: 'center',
-    marginBottom: theme.spacing.lg,
-  },
-  ringContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  ringTextContainer: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ringPercentage: {
-    fontSize: 32,
+  username: {
+    fontSize: 24,
     fontWeight: '700',
     color: theme.colors.deepNavy,
+    marginBottom: theme.spacing.sm,
   },
-  ringLabel: {
-    fontSize: 11,
-    fontWeight: '500',
+  subscriptionBadge: {
+    backgroundColor: theme.colors.softWhite,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.full,
+    marginBottom: theme.spacing.md,
+  },
+  subscriptionText: {
+    fontSize: 14,
+    fontWeight: '600',
     color: theme.colors.textSecondary,
-    textAlign: 'center',
-    maxWidth: 80,
-    marginTop: 2,
   },
-  // Comparison Card Styles
-  comparisonCard: {
+  subscriptionTextPro: {
+    color: theme.colors.midOrange,
+  },
+  upgradeButton: {
+    backgroundColor: theme.colors.hotCoral,
+    paddingHorizontal: theme.spacing.xl,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+  },
+  upgradeButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.white,
+  },
+  // Stats Card
+  statsCard: {
     backgroundColor: theme.colors.white,
     borderRadius: theme.borderRadius.lg,
     padding: theme.spacing.lg,
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
     ...theme.cardShadow,
-  },
-  comparisonTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.deepNavy,
-    marginBottom: theme.spacing.md,
-    textAlign: 'center',
-  },
-  comparisonRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.md,
-  },
-  comparisonColumn: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  comparisonLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: theme.colors.textSecondary,
-    letterSpacing: 0.5,
-    marginBottom: theme.spacing.xs,
-  },
-  comparisonPredicted: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: theme.colors.deepNavy,
-  },
-  comparisonActual: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: theme.colors.deepNavy,
-  },
-  overBudget: {
-    color: theme.colors.midOrange,
-  },
-  vsText: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    paddingHorizontal: theme.spacing.sm,
-  },
-  diffContainer: {
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
-    alignItems: 'center',
-  },
-  diffOver: {
-    backgroundColor: 'rgba(254, 139, 24, 0.12)',
-  },
-  diffUnder: {
-    backgroundColor: 'rgba(195, 255, 52, 0.12)',
-  },
-  diffText: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: theme.spacing.xs,
-  },
-  diffTextOver: {
-    color: theme.colors.midOrange,
-  },
-  diffTextUnder: {
-    color: '#2E7D32',
-  },
-  diffLabel: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-  },
-  // Highlights Section Styles
-  highlightsSection: {
-    marginBottom: theme.spacing.md,
   },
   sectionTitle: {
     fontSize: 18,
@@ -462,76 +387,233 @@ const styles = StyleSheet.create({
     color: theme.colors.deepNavy,
     marginBottom: theme.spacing.md,
   },
-  highlightItem: {
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.md,
+  },
+  statItem: {
+    width: '47%',
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.sm,
-    ...theme.cardShadow,
-    shadowOpacity: 0.05,
+    gap: theme.spacing.sm,
   },
-  highlightIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: theme.spacing.md,
-  },
-  positiveIcon: {
-    backgroundColor: 'rgba(195, 255, 52, 0.25)',
-  },
-  negativeIcon: {
-    backgroundColor: 'rgba(254, 139, 24, 0.25)',
-  },
-  iconText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  highlightText: {
-    flex: 1,
-    fontSize: 15,
-    color: theme.colors.deepNavy,
-    lineHeight: 20,
-  },
-  // Insight Card Styles
-  insightCard: {
-    backgroundColor: theme.colors.white,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    ...theme.cardShadow,
-    borderLeftWidth: 4,
-    borderLeftColor: theme.colors.deepTeal,
-  },
-  insightIconContainer: {
+  statIconContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(0, 78, 96, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statIcon: {
+    fontSize: 18,
+  },
+  statContent: {
+    flex: 1,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.deepNavy,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    marginTop: 1,
+  },
+  // Info Card
+  infoCard: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+    ...theme.cardShadow,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.sm,
+  },
+  infoLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  infoLabel: {
+    fontSize: 15,
+    color: theme.colors.textSecondary,
+  },
+  infoValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.deepNavy,
+  },
+  // Actions Card
+  actionsCard: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
+    ...theme.cardShadow,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm,
+  },
+  actionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+  },
+  actionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: theme.colors.deepNavy,
+  },
+  logoutText: {
+    color: theme.colors.hotCoral,
+  },
+  actionDivider: {
+    height: 1,
+    backgroundColor: theme.colors.lightGray,
+    marginVertical: theme.spacing.xs,
+    marginHorizontal: theme.spacing.sm,
+  },
+  // Version
+  versionText: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  // Not Logged In State
+  notLoggedIn: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+  },
+  notLoggedInEmoji: {
+    fontSize: 64,
+    marginBottom: theme.spacing.md,
+  },
+  notLoggedInTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: theme.colors.deepNavy,
+    marginBottom: theme.spacing.sm,
+  },
+  notLoggedInText: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.xl,
+  },
+  signInButton: {
+    backgroundColor: theme.colors.hotCoral,
+    paddingHorizontal: theme.spacing.xxl,
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+  },
+  signInButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.white,
+  },
+  bottomSpacer: {
+    height: 80,
+  },
+  // Wallet Card
+  walletCard: {
+    backgroundColor: '#9945FF10',
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: '#9945FF30',
+  },
+  walletHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  walletIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#9945FF20',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: theme.spacing.md,
   },
-  insightIcon: {
-    fontSize: 20,
+  walletIcon: {
+    fontSize: 24,
+    color: '#9945FF',
   },
-  insightContent: {
+  walletInfo: {
     flex: 1,
   },
-  insightTitle: {
-    fontSize: 12,
+  walletTitle: {
+    fontSize: 18,
     fontWeight: '600',
-    color: theme.colors.deepTeal,
-    marginBottom: theme.spacing.xs,
-    letterSpacing: 0.5,
+    color: '#9945FF',
   },
-  insightText: {
-    fontSize: 15,
-    color: theme.colors.deepNavy,
-    lineHeight: 22,
+  walletAddress: {
+    fontSize: 12,
+    color: theme.colors.deepTeal,
+    fontFamily: 'monospace',
+    textDecorationLine: 'underline',
+    marginTop: 2,
+  },
+  balanceSection: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  balanceLabel: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginBottom: 4,
+  },
+  balanceAmount: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#9945FF',
+    fontFamily: 'monospace',
+  },
+  topUpButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#9945FF',
+    borderRadius: theme.borderRadius.md,
+    paddingVertical: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  topUpButtonDisabled: {
+    backgroundColor: '#9945FF80',
+  },
+  topUpButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.white,
+  },
+  walletDisclaimer: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginTop: theme.spacing.sm,
   },
 });
