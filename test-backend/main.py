@@ -7,7 +7,7 @@ Providers:
   3. Groq
 
 Run:
-  uvicorn main:app --reload --port 8001
+  uvicorn main:app --reload --port 8002
 """
 
 import csv
