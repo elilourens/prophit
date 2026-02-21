@@ -409,6 +409,93 @@ Tips:"""
         return f"[ERROR] Budget tips failed: {e}"
 
 
+@app.post("/financial-summary", tags=["budget"])
+async def financial_summary_from_file(file: UploadFile = File(...)):
+    """
+    Generate a financial summary (savings, rent, groceries, etc.) from transaction data.
+
+    Upload a JSON, CSV, or PDF file; the LLM extracts figures suitable for the income-runway flow.
+    """
+    raw = await file.read()
+    try:
+        data_str = prepare_input(raw, file.filename or "file")
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise HTTPException(status_code=400, detail=f"Invalid file: {e}")
+
+    summary = await generate_financial_summary(data_str)
+    return {"summary": summary}
+
+
+async def generate_financial_summary(transaction_data: str) -> str:
+    """Use OpenAI to extract a financial summary from transaction data for income-runway use."""
+    if not OPENAI_API_KEY:
+        return "[SKIPPED] OPENAI_API_KEY not set"
+
+    prompt = """Analyze this transaction/banking data and produce a short financial summary that could be used to estimate "how long I can go without income."
+
+Include, in plain text and in 4–8 short lines:
+- Estimated savings or current balance (if visible in the data; otherwise say "savings/balance not clear from data").
+- Monthly rent or mortgage (recurring housing).
+- Monthly groceries and food.
+- Other recurring monthly expenses (subscriptions, utilities, transport, etc.) with a brief total or breakdown.
+- Any recurring income (salary, side income) if visible.
+
+Write it as a single block of text that someone could paste into a "financial summary" field. No bullet symbols needed if you use line breaks. Be concise and use approximate numbers where exact ones aren't clear."""
+
+    full_content = f"{prompt}\n\nTransaction data:\n{transaction_data[:30000]}"
+
+    try:
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": full_content}],
+            max_tokens=400,
+            temperature=0.3,
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"[ERROR] Financial summary failed: {e}"
+
+
+@app.post("/income-runway", tags=["budget"])
+async def income_runway(text: str):
+    """
+    Estimate how long the user can go without any new income, based on savings and expenses.
+
+    Pass a financial summary as text (e.g. savings, monthly expenses, other income).
+    """
+    if not text or not text.strip():
+        raise HTTPException(status_code=400, detail="Provide a financial summary (savings, expenses) as text")
+
+    result = await get_income_runway(text)
+    return {"runway": result}
+
+
+async def get_income_runway(financial_summary: str) -> str:
+    """Use OpenAI to estimate runway (months without income) from a financial summary."""
+    if not OPENAI_API_KEY:
+        return "[SKIPPED] OPENAI_API_KEY not set"
+
+    prompt = f"""Based on the following financial summary, estimate how long this person can go without any new income (runway). Consider savings, liquid assets, monthly expenses, and any recurring income they mentioned.
+
+Financial Summary:
+{financial_summary}
+
+Respond in 2-4 short sentences: give the estimated runway (e.g. "About X months" or "Roughly Y months"), and one brief note on what would help extend it or what the main risk is. Be concise."""
+
+    try:
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=150,
+            temperature=0.5,
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"[ERROR] Income runway failed: {e}"
+
+
 def _render_results(filename: str, claude: str, gemini: str, openai: str) -> HTMLResponse:
     """Render LLM responses as a readable HTML page with markdown rendering."""
     import html

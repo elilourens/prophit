@@ -11,7 +11,7 @@ from pathlib import Path
 
 import gradio as gr
 
-from main import ask_claude, ask_gemini, ask_openai, ask_claude_calendar, prepare_input, get_budget_tips
+from main import ask_claude, ask_gemini, ask_openai, ask_claude_calendar, prepare_input, get_budget_tips, get_income_runway, generate_financial_summary
 
 DATA_DIR = Path(__file__).parent.parent / "backend" / "data"
 
@@ -117,6 +117,33 @@ def get_tips(predictions_text):
     return tips
 
 
+def get_runway(financial_text):
+    """Get how long user can go without income from financial summary."""
+    if not financial_text or not financial_text.strip():
+        return "Enter a financial summary (savings, monthly expenses) first."
+    return asyncio.run(get_income_runway(financial_text))
+
+
+def runway_summary_from_upload(file):
+    """Generate financial summary from an uploaded file and return it for the runway textbox."""
+    if file is None:
+        return ""
+    path = file.name if hasattr(file, "name") else file
+    data_str = _load_and_prepare(path)
+    return asyncio.run(generate_financial_summary(data_str))
+
+
+def runway_summary_from_local(filename):
+    """Generate financial summary from a local backend/data file for the runway textbox."""
+    if not filename:
+        return ""
+    filepath = DATA_DIR / filename
+    if not filepath.exists():
+        return ""
+    data_str = _load_and_prepare(filepath)
+    return asyncio.run(generate_financial_summary(data_str))
+
+
 with gr.Blocks(
     title="Prophit — Multi-LLM Analyser",
     theme=gr.themes.Base(primary_hue="blue", neutral_hue="slate"),
@@ -215,6 +242,44 @@ with gr.Blocks(
                 fn=get_tips,
                 inputs=[predictions_input],
                 outputs=[tips_output],
+            )
+
+        # --- Tab 5: Income Runway ---
+        with gr.Tab("Income Runway"):
+            gr.Markdown("Paste your financial summary (savings, monthly expenses) or **generate it from a file** to see how long you could go without any new income.")
+
+            with gr.Row():
+                runway_upload = gr.File(label="Upload file (JSON/CSV/PDF)", file_types=[".json", ".csv", ".pdf", ".txt"])
+                runway_dropdown = gr.Dropdown(
+                    label="Or pick from backend/data",
+                    choices=_list_local_files(),
+                    value=None,
+                )
+            runway_gen_btn = gr.Button("Generate financial summary from file", variant="secondary")
+            runway_input = gr.Textbox(
+                label="Financial Summary",
+                placeholder="e.g., Savings: $25,000. Monthly rent $1,800, groceries $400, other expenses ~$600. No other income.",
+                lines=4,
+            )
+            runway_btn = gr.Button("How long without income?", variant="primary")
+            runway_output = gr.Markdown(label="Runway")
+
+            def _runway_summary_from_file(upload, local_name):
+                if upload is not None:
+                    return runway_summary_from_upload(upload)
+                if local_name:
+                    return runway_summary_from_local(local_name)
+                return ""
+
+            runway_gen_btn.click(
+                fn=_runway_summary_from_file,
+                inputs=[runway_upload, runway_dropdown],
+                outputs=[runway_input],
+            )
+            runway_btn.click(
+                fn=get_runway,
+                inputs=[runway_input],
+                outputs=[runway_output],
             )
 
 if __name__ == "__main__":
