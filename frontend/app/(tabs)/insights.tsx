@@ -204,6 +204,8 @@ export default function InsightsScreen() {
     seasonal,
     trajectory,
     weeklyRecap,
+    dataRangeMonths,
+    hasLimitedData,
   } = useMemo(() => {
     if (!userDataset) {
       return {
@@ -213,10 +215,14 @@ export default function InsightsScreen() {
         seasonal: DEFAULT_DATA.seasonal,
         trajectory: DEFAULT_DATA.trajectory,
         weeklyRecap: DEFAULT_WEEKLY_RECAP,
+        dataRangeMonths: 24,
+        hasLimitedData: false,
       };
     }
 
     const { transactions, summary } = userDataset;
+    const dataRange = summary.dataRangeMonths || 24;
+    const limitedData = dataRange < 3;
 
     // Calculate seasonal spending
     const winterMonths = transactions.filter(t => {
@@ -281,15 +287,22 @@ export default function InsightsScreen() {
     const lastWeekSpend = summary.weeklyAverages[1]?.amount || 380;
     const accuracyPercentage = Math.min(95, Math.max(60, 85 - Math.abs(thisWeekSpend - lastWeekSpend) / 10));
 
+    // Calculate seasonal divisors based on actual data range
+    // For limited data, just use what we have
+    const winterMonthCount = Math.max(1, Math.ceil(dataRange * (4 / 12))); // ~4 winter months per year
+    const summerMonthCount = Math.max(1, Math.ceil(dataRange * (4 / 12))); // ~4 summer months per year
+
     return {
       runwayMonths: summary.runwayMonths,
       savings: summary.savings,
       monthlyBurn: Math.round(summary.avgMonthly),
       seasonal: {
-        // 24 months = 8 winter months, 8 summer months - get monthly average
-        winterSpend: Math.round(winterTotal / 8) || DEFAULT_DATA.seasonal.winterSpend,
-        summerSpend: Math.round(summerTotal / 8) || DEFAULT_DATA.seasonal.summerSpend,
+        // Use actual data range for divisor instead of hardcoded 8
+        winterSpend: Math.round(winterTotal / winterMonthCount) || DEFAULT_DATA.seasonal.winterSpend,
+        summerSpend: Math.round(summerTotal / summerMonthCount) || DEFAULT_DATA.seasonal.summerSpend,
       },
+      dataRangeMonths: dataRange,
+      hasLimitedData: limitedData,
       trajectory: {
         historical: monthlySpending,
         projected: projected,
@@ -378,6 +391,16 @@ export default function InsightsScreen() {
           </View>
         ) : (
           <>
+            {/* Limited Data Notice */}
+            {hasLimitedData && (
+              <View style={styles.limitedDataBanner}>
+                <Ionicons name="information-circle" size={20} color={theme.colors.deepTeal} />
+                <Text style={styles.limitedDataText}>
+                  Based on {dataRangeMonths < 1 ? 'less than 1 month' : `~${Math.round(dataRangeMonths)} month${dataRangeMonths >= 1.5 ? 's' : ''}`} of data. Upload more history for better insights.
+                </Text>
+              </View>
+            )}
+
             {/* Financial Runway Section */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Financial Runway</Text>
@@ -541,6 +564,21 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.md,
     fontSize: 14,
     color: theme.colors.textSecondary,
+  },
+  limitedDataBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(0, 78, 96, 0.08)',
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
+    gap: theme.spacing.sm,
+  },
+  limitedDataText: {
+    flex: 1,
+    fontSize: 13,
+    color: theme.colors.deepTeal,
+    lineHeight: 18,
   },
   section: {
     marginBottom: theme.spacing.xl,

@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   StatusBar,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../components/theme';
 import { ToggleTabs, TabOption } from '../../components/ToggleTabs';
 import { ComparisonChart } from '../../components/ComparisonChart';
@@ -86,9 +86,11 @@ export default function HistoryScreen() {
   // Get user's transaction data
   const dataset = getCachedUserDataset();
   const transactions = dataset?.transactions || [];
+  const dataRangeMonths = dataset?.summary?.dataRangeMonths || 24;
+  const hasLimitedData = dataRangeMonths < 3;
 
   // Calculate data based on selected time period
-  const { categoryData, comparisonData, alertsData, totalThis, totalLast } = useMemo(() => {
+  const { categoryData, comparisonData, alertsData, totalThis, totalLast, insufficientData } = useMemo(() => {
     const now = new Date('2026-02-21');
     let periodDays: number;
     let labels: string[];
@@ -262,14 +264,19 @@ export default function HistoryScreen() {
       });
     }
 
+    // Check if we have sufficient data for the selected period
+    const requiredMonths = activeTab === 'week' ? 0.5 : activeTab === 'month' ? 2 : 12;
+    const hasInsufficientData = dataRangeMonths < requiredMonths;
+
     return {
       categoryData: catData.length > 0 ? catData : DEFAULT_CATEGORY_DATA,
       comparisonData: compData,
       alertsData: alerts,
       totalThis: Math.round(totalThis),
       totalLast: Math.round(totalLast),
+      insufficientData: hasInsufficientData,
     };
-  }, [activeTab, transactions]);
+  }, [activeTab, transactions, dataRangeMonths]);
 
   const periodDifference = totalLast > 0
     ? ((totalThis - totalLast) / totalLast * 100).toFixed(0)
@@ -293,6 +300,19 @@ export default function HistoryScreen() {
         <View style={styles.tabsContainer}>
           <ToggleTabs activeTab={activeTab} onTabChange={handleTabChange} />
         </View>
+
+        {/* Limited Data Notice */}
+        {(hasLimitedData || insufficientData) && (
+          <View style={styles.limitedDataBanner}>
+            <Ionicons name="information-circle" size={20} color={theme.colors.deepTeal} />
+            <Text style={styles.limitedDataText}>
+              {insufficientData
+                ? `Not enough data for ${activeTab}ly comparison. You have ~${Math.round(dataRangeMonths)} month${dataRangeMonths >= 1.5 ? 's' : ''} of data.`
+                : `Based on ~${Math.round(dataRangeMonths)} month${dataRangeMonths >= 1.5 ? 's' : ''} of data.`
+              }
+            </Text>
+          </View>
+        )}
 
         {/* Summary Cards */}
         <View style={styles.summaryRow}>
@@ -382,6 +402,21 @@ const styles = StyleSheet.create({
   },
   tabsContainer: {
     marginBottom: theme.spacing.lg,
+  },
+  limitedDataBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(0, 78, 96, 0.08)',
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
+    gap: theme.spacing.sm,
+  },
+  limitedDataText: {
+    flex: 1,
+    fontSize: 13,
+    color: theme.colors.deepTeal,
+    lineHeight: 18,
   },
   summaryRow: {
     flexDirection: 'row',

@@ -40,6 +40,7 @@ export interface TransactionSummary {
   savingsRate: number; // percentage of income saved
   projectedMonthlySpend: number;
   runwayMonths: number;
+  dataRangeMonths?: number; // How many months of data available (for uploaded data)
 }
 
 export interface UserDataset {

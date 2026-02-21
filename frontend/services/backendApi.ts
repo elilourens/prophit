@@ -7,7 +7,12 @@
  * 2. GET /gradio_api/call/{api_name}/{event_id} -> parse SSE response for result
  */
 
+import { UserDataset, Transaction, TransactionSummary, FAKE_DATASETS, getDatasetById } from './fakeDatasets';
+
 const BASE_URL = 'https://backend.prophit.lissan.dev';
+
+// Cached user dataset (loaded on app init or from upload)
+let cachedUserDataset: UserDataset | null = null;
 
 // Types for API responses
 export interface CalendarPrediction {
@@ -148,7 +153,245 @@ export function setUseUploadedData(value: boolean, fileContent?: string): void {
   useUploadedData = value;
   if (fileContent) {
     uploadedFileContent = fileContent;
+    // Parse the uploaded content and set it as the cached dataset
+    const parsedDataset = parseUploadedContent(fileContent);
+    if (parsedDataset) {
+      cachedUserDataset = parsedDataset;
+    }
   }
+}
+
+/**
+ * Parse uploaded file content (CSV, JSON, or raw text) into a UserDataset
+ */
+function parseUploadedContent(content: string): UserDataset | null {
+  try {
+    let transactions: Transaction[] = [];
+
+    // Try parsing as JSON first
+    if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
+      const jsonData = JSON.parse(content);
+      if (Array.isArray(jsonData)) {
+        transactions = jsonData.map(normalizeTransaction);
+      } else if (jsonData.transactions) {
+        transactions = jsonData.transactions.map(normalizeTransaction);
+      }
+    } else {
+      // Parse as CSV
+      transactions = parseCSV(content);
+    }
+
+    if (transactions.length === 0) {
+      console.warn('No transactions parsed from uploaded content');
+      return null;
+    }
+
+    // Calculate summary from parsed transactions
+    const summary = calculateSummaryFromTransactions(transactions);
+
+    return {
+      id: -1, // Special ID for uploaded data
+      transactions,
+      summary,
+    };
+  } catch (error) {
+    console.error('Error parsing uploaded content:', error);
+    return null;
+  }
+}
+
+/**
+ * Normalize a transaction object to our standard format
+ */
+function normalizeTransaction(t: any): Transaction {
+  return {
+    date: t.date || t.Date || t.DATE || new Date().toISOString().split('T')[0],
+    description: t.description || t.Description || t.DESC || t.name || t.Name || 'Unknown',
+    amount: parseFloat(t.amount || t.Amount || t.AMOUNT || t.value || t.Value || 0),
+    category: t.category || t.Category || t.CATEGORY || categorizeTransaction(t.description || t.Description || ''),
+  };
+}
+
+/**
+ * Auto-categorize a transaction based on description
+ */
+function categorizeTransaction(description: string): string {
+  const desc = description.toLowerCase();
+  if (desc.includes('coffee') || desc.includes('starbucks') || desc.includes('costa')) return 'Coffee';
+  if (desc.includes('uber') || desc.includes('bolt') || desc.includes('taxi') || desc.includes('luas') || desc.includes('bus')) return 'Transport';
+  if (desc.includes('tesco') || desc.includes('lidl') || desc.includes('aldi') || desc.includes('dunnes') || desc.includes('supermarket') || desc.includes('grocery')) return 'Groceries';
+  if (desc.includes('netflix') || desc.includes('spotify') || desc.includes('disney') || desc.includes('subscription')) return 'Subscriptions';
+  if (desc.includes('restaurant') || desc.includes('dining') || desc.includes('food') || desc.includes('lunch') || desc.includes('dinner')) return 'Dining';
+  if (desc.includes('rent') || desc.includes('landlord')) return 'Rent';
+  if (desc.includes('electric') || desc.includes('gas') || desc.includes('water') || desc.includes('utility')) return 'Utilities';
+  if (desc.includes('amazon') || desc.includes('shop') || desc.includes('store')) return 'Shopping';
+  if (desc.includes('salary') || desc.includes('payroll') || desc.includes('income') || desc.includes('deposit')) return 'Income';
+  if (desc.includes('transfer') || desc.includes('revolut') || desc.includes('sent')) return 'Transfer';
+  return 'Other';
+}
+
+/**
+ * Parse CSV content into transactions
+ */
+function parseCSV(content: string): Transaction[] {
+  const lines = content.split('\n').filter(line => line.trim());
+  if (lines.length < 2) return [];
+
+  const header = lines[0].toLowerCase();
+  const hasHeader = header.includes('date') || header.includes('amount') || header.includes('description');
+  const dataLines = hasHeader ? lines.slice(1) : lines;
+
+  return dataLines.map(line => {
+    // Handle both comma and semicolon separators
+    const parts = line.includes(';') ? line.split(';') : line.split(',');
+
+    // Try to detect which column is which
+    let date = '', description = '', amount = 0, category = '';
+
+    parts.forEach((part, i) => {
+      const trimmed = part.trim().replace(/"/g, '');
+      // Check if it looks like a date
+      if (/^\d{4}-\d{2}-\d{2}/.test(trimmed) || /^\d{2}\/\d{2}\/\d{4}/.test(trimmed)) {
+        date = trimmed;
+      }
+      // Check if it looks like an amount
+      else if (/^-?[\d,.]+$/.test(trimmed.replace(/[€$£]/g, ''))) {
+        const parsed = parseFloat(trimmed.replace(/[€$£,]/g, ''));
+        if (!isNaN(parsed)) amount = parsed;
+      }
+      // Otherwise it's probably a description
+      else if (trimmed.length > 2 && !category) {
+        description = trimmed;
+      }
+    });
+
+    return {
+      date: date || new Date().toISOString().split('T')[0],
+      description: description || 'Unknown transaction',
+      amount: amount,
+      category: categorizeTransaction(description),
+    };
+  }).filter(t => t.amount !== 0);
+}
+
+/**
+ * Calculate summary statistics from transactions
+ */
+function calculateSummaryFromTransactions(transactions: Transaction[]): TransactionSummary {
+  const expenses = transactions.filter(t => t.amount < 0);
+  const income = transactions.filter(t => t.amount > 0);
+
+  const totalSpent = Math.abs(expenses.reduce((sum, t) => sum + t.amount, 0));
+  const totalIncome = income.reduce((sum, t) => sum + t.amount, 0);
+
+  // Calculate date range
+  const dates = transactions.map(t => new Date(t.date).getTime()).filter(d => !isNaN(d));
+  const minDate = Math.min(...dates);
+  const maxDate = Math.max(...dates);
+  const dayRange = Math.max(1, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)));
+  const monthRange = Math.max(1, dayRange / 30);
+
+  // Track data range for UI adaptation
+  const dataRangeMonths = Math.round(monthRange * 10) / 10;
+
+  const avgDaily = totalSpent / dayRange;
+  const avgMonthly = totalSpent / monthRange;
+
+  // Category totals
+  const categoryTotals: { [key: string]: number } = {};
+  expenses.forEach(t => {
+    categoryTotals[t.category] = (categoryTotals[t.category] || 0) + Math.abs(t.amount);
+  });
+
+  const topCategories = Object.entries(categoryTotals)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([cat]) => cat);
+
+  // Monthly snapshots
+  const monthlyData: { [key: string]: { spent: number; income: number } } = {};
+  transactions.forEach(t => {
+    const month = t.date.substring(0, 7);
+    if (!monthlyData[month]) monthlyData[month] = { spent: 0, income: 0 };
+    if (t.amount < 0) monthlyData[month].spent += Math.abs(t.amount);
+    else monthlyData[month].income += t.amount;
+  });
+
+  const monthlySnapshots = Object.entries(monthlyData)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([month, data]) => ({
+      month,
+      totalSpent: Math.round(data.spent * 100) / 100,
+      totalIncome: Math.round(data.income * 100) / 100,
+      netSavings: Math.round((data.income - data.spent) * 100) / 100,
+      topCategory: topCategories[0] || 'Other',
+    }));
+
+  // Weekly averages (last 4 weeks if available)
+  const weeklyAverages: { week: number; amount: number }[] = [];
+  const now = new Date();
+  for (let week = 0; week < 4; week++) {
+    const weekStart = new Date(now);
+    weekStart.setDate(weekStart.getDate() - (week * 7) - 6);
+    const weekEnd = new Date(now);
+    weekEnd.setDate(weekEnd.getDate() - (week * 7));
+
+    const weekTransactions = expenses.filter(t => {
+      const d = new Date(t.date);
+      return d >= weekStart && d <= weekEnd;
+    });
+    const weekTotal = Math.abs(weekTransactions.reduce((sum, t) => sum + t.amount, 0));
+    weeklyAverages.push({ week: week + 1, amount: Math.round(weekTotal * 100) / 100 });
+  }
+
+  // Simple seasonal data (based on available months)
+  const seasonalData = { winter: avgMonthly, spring: avgMonthly, summer: avgMonthly, autumn: avgMonthly };
+
+  // Determine spending trend from monthly data
+  const monthlyAmounts = monthlySnapshots.map(m => m.totalSpent);
+  let spendingTrend: 'increasing' | 'decreasing' | 'stable' = 'stable';
+  if (monthlyAmounts.length >= 2) {
+    const recent = monthlyAmounts.slice(-2).reduce((a, b) => a + b, 0) / 2;
+    const older = monthlyAmounts.slice(0, -2).reduce((a, b) => a + b, 0) / Math.max(1, monthlyAmounts.length - 2);
+    if (recent > older * 1.1) spendingTrend = 'increasing';
+    else if (recent < older * 0.9) spendingTrend = 'decreasing';
+  }
+
+  // Calculate actual monthly income and net savings from transactions
+  const monthlyIncome = Math.round(totalIncome / monthRange);
+  const netSavingsFromPeriod = totalIncome - totalSpent;
+  const monthlySavings = netSavingsFromPeriod / monthRange;
+
+  // Savings rate based on actual income vs spending
+  const savingsRate = totalIncome > 0
+    ? Math.max(0, Math.min(100, Math.round((monthlySavings / (monthlyIncome || 1)) * 100)))
+    : 0;
+
+  // Calculate actual savings based on net income from the data period
+  // For short data periods (< 3 months), extrapolate conservatively
+  const actualSavings = Math.round(Math.max(0, netSavingsFromPeriod));
+
+  // Runway based on actual savings / monthly burn
+  const runwayMonths = avgMonthly > 0 && actualSavings > 0
+    ? Math.round((actualSavings / avgMonthly) * 10) / 10
+    : 0;
+
+  return {
+    totalSpent: Math.round(totalSpent * 100) / 100,
+    avgDaily: Math.round(avgDaily * 100) / 100,
+    avgMonthly: Math.round(avgMonthly * 100) / 100,
+    topCategories,
+    monthlyIncome: monthlyIncome || 0,
+    savings: actualSavings,
+    monthlySnapshots,
+    weeklyAverages,
+    seasonalData,
+    spendingTrend,
+    savingsRate,
+    projectedMonthlySpend: Math.round(avgMonthly),
+    runwayMonths,
+    dataRangeMonths, // How many months of data we have
+  };
 }
 
 export function isUsingUploadedData(): boolean {
@@ -515,11 +758,6 @@ export async function getFinancialSummary(transactionData: string): Promise<stri
     return '';
   }
 }
-
-import { UserDataset, FAKE_DATASETS, getDatasetById } from './fakeDatasets';
-
-// Cached user dataset (loaded on app init)
-let cachedUserDataset: UserDataset | null = null;
 
 /**
  * Initialize user data - call this when user logs in
