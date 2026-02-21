@@ -1,6 +1,6 @@
 """Tests for transaction sampling."""
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from app.models.transaction import Transaction
 from app.services.sampling import TransactionSampler
 
@@ -9,7 +9,7 @@ from app.services.sampling import TransactionSampler
 def sample_transactions():
     """Generate sample transactions for testing."""
     transactions = []
-    base_date = datetime.utcnow() - timedelta(days=100)
+    base_date = datetime.now(timezone.utc) - timedelta(days=100)
     
     # Create transactions with varying amounts
     for i in range(200):
@@ -39,7 +39,7 @@ def sample_transactions():
     for i in range(20):
         transactions.append(Transaction(
             id=f"recent_{i}",
-            timestamp=datetime.utcnow() - timedelta(days=i),
+            timestamp=datetime.now(timezone.utc) - timedelta(days=i),
             amount=-10.0,
             currency="USD",
             description=f"Recent Transaction {i}",
@@ -72,7 +72,7 @@ def test_sampling_recency(sample_transactions):
     
     # Should include recent transactions
     assert stats["recency_count"] > 0
-    recent_cutoff = datetime.utcnow() - timedelta(days=14)
+    recent_cutoff = datetime.now(timezone.utc) - timedelta(days=14)
     recent_in_sample = [tx for tx in sampled if tx.timestamp >= recent_cutoff]
     assert len(recent_in_sample) > 0
 
@@ -96,6 +96,14 @@ def test_sampling_budget_limit(sample_transactions):
     )
     sampled, stats = sampler.sample(sample_transactions, window_days=180)
     
-    # Should be trimmed to fit budget
-    sample_str = str(sampled)
-    assert len(sample_str) <= sampler.target_char_budget * 1.2  # Allow some margin
+    # Should be trimmed to fit budget using compact representation
+    compact_str = sampler.to_compact_string(sampled)
+    char_used = len(compact_str)
+    
+    # Budget must be respected
+    assert char_used <= sampler.target_char_budget, \
+        f"Budget exceeded: {char_used} > {sampler.target_char_budget}"
+    
+    # Stats should reflect the actual char count used
+    assert stats["char_used"] == char_used
+    assert stats["char_used"] <= sampler.target_char_budget

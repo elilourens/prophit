@@ -1,7 +1,7 @@
 """Database storage layer using SQLite."""
 import sqlite3
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from contextlib import contextmanager
 from app.models.transaction import Transaction, TransactionCreate
@@ -68,7 +68,7 @@ class TransactionStore:
                     tx.description,
                     tx.category,
                     tx.balance_after,
-                    datetime.utcnow().isoformat(),
+                    datetime.now(timezone.utc).isoformat(),
                 ))
                 count += 1
             conn.commit()
@@ -96,18 +96,22 @@ class TransactionStore:
             query += " ORDER BY timestamp ASC"
             
             rows = conn.execute(query, params).fetchall()
-            return [
-                Transaction(
+            result = []
+            for row in rows:
+                dt = datetime.fromisoformat(row["timestamp"])
+                # Ensure timezone-aware (assume UTC if naive)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                result.append(Transaction(
                     id=row["id"],
-                    timestamp=datetime.fromisoformat(row["timestamp"]),
+                    timestamp=dt,
                     amount=row["amount"],
                     currency=row["currency"],
                     description=row["description"],
                     category=row["category"],
                     balance_after=row["balance_after"],
-                )
-                for row in rows
-            ]
+                ))
+            return result
     
     def get_transaction_stats(self, user_id: str) -> dict:
         """Get basic statistics about user's transactions."""
@@ -181,7 +185,7 @@ class SummaryStore:
                 user_id,
                 summary_type,
                 json.dumps(judge_output.model_dump(), default=str),
-                datetime.utcnow().isoformat(),
+                datetime.now(timezone.utc).isoformat(),
             ))
             conn.commit()
         return summary_id

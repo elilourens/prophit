@@ -1,6 +1,6 @@
 """Transaction sampling strategies."""
-from datetime import datetime, timedelta
-from typing import List, Tuple
+from datetime import datetime, timedelta, timezone
+from typing import List, Tuple, Optional
 from app.models.transaction import Transaction
 from app.utils.token_estimation import estimate_tokens
 
@@ -29,13 +29,40 @@ class TransactionSampler:
         self.recency_days = recency_days
         self.target_char_budget = target_char_budget
     
+    def to_compact_string(self, transactions: List[Transaction]) -> str:
+        """
+        Convert transactions to compact string representation for budgeting.
+        Format: "YYYY-MM-DD|amount|currency|category|description" per line.
+        
+        Args:
+            transactions: List of transactions
+            
+        Returns:
+            Compact string representation
+        """
+        lines = []
+        for tx in transactions:
+            date_str = tx.timestamp.strftime("%Y-%m-%d")
+            amount_str = str(tx.amount)
+            currency_str = tx.currency or "USD"
+            category_str = tx.category or ""
+            desc_str = tx.description or ""
+            lines.append(f"{date_str}|{amount_str}|{currency_str}|{category_str}|{desc_str}")
+        return "\n".join(lines)
+    
     def sample(
         self,
         transactions: List[Transaction],
         window_days: int = 180,
+        as_of: Optional[datetime] = None,
     ) -> Tuple[List[Transaction], dict]:
         """
         Sample transactions using multiple strategies.
+        
+        Args:
+            transactions: List of transactions (should already be filtered to window)
+            window_days: Window size in days (for stats only, transactions already filtered)
+            as_of: Reference date for recency calculations. If None, uses current UTC time.
         
         Returns:
             Tuple of (sampled_transactions, stats_dict)
@@ -51,16 +78,15 @@ class TransactionSampler:
                 "recency_count": 0,
             }
         
-        # Filter by window
-        cutoff_date = datetime.utcnow() - timedelta(days=window_days)
-        windowed = [tx for tx in transactions if tx.timestamp >= cutoff_date]
+        # Transactions are already filtered by the endpoint, so use them directly
+        windowed = transactions
         
         if not windowed:
             return [], {
                 "total_transactions": len(transactions),
                 "sampled_count": 0,
-                "date_range_start": min(tx.timestamp for tx in transactions),
-                "date_range_end": max(tx.timestamp for tx in transactions),
+                "date_range_start": min(tx.timestamp for tx in transactions) if transactions else None,
+                "date_range_end": max(tx.timestamp for tx in transactions) if transactions else None,
                 "top_x_count": 0,
                 "stratified_count": 0,
                 "recency_count": 0,
@@ -70,7 +96,9 @@ class TransactionSampler:
         date_range_end = max(tx.timestamp for tx in windowed)
         
         # Strategy 1: Recency weighting (always include recent transactions)
-        recency_cutoff = datetime.utcnow() - timedelta(days=self.recency_days)
+        # Use as_of if provided, otherwise current time
+        reference_date = as_of if as_of else datetime.now(timezone.utc)
+        recency_cutoff = reference_date - timedelta(days=self.recency_days)
         recent = [tx for tx in windowed if tx.timestamp >= recency_cutoff]
         
         # Strategy 2: Top X by absolute amount
@@ -108,17 +136,18 @@ class TransactionSampler:
         # Sort by timestamp
         sampled_list.sort(key=lambda tx: tx.timestamp)
         
-        # Check if we're within budget, if not, trim
-        current_size = len(str(sampled_list))
-        if current_size > self.target_char_budget:
-            # Trim by removing oldest non-recent transactions
-            trimmed = []
-            for tx in sampled_list:
-                if tx.timestamp >= recency_cutoff:
-                    trimmed.append(tx)
-                elif len(str(trimmed)) < self.target_char_budget * 0.8:
-                    trimmed.append(tx)
-            sampled_list = trimmed
+        # Enforce budget using compact representation
+        sampled_list = self._enforce_budget(
+            sampled_list,
+            recent,
+            top_x_txs,
+            stratified,
+            recency_cutoff,
+        )
+        
+        # Calculate actual char count used
+        compact_str = self.to_compact_string(sampled_list)
+        char_used = len(compact_str)
         
         stats = {
             "total_transactions": len(transactions),
@@ -128,9 +157,99 @@ class TransactionSampler:
             "top_x_count": len([tx for tx in sampled_list if tx in top_x_txs]),
             "stratified_count": len([tx for tx in sampled_list if tx in stratified]),
             "recency_count": len(recent),
+            "char_used": char_used,
         }
         
         return sampled_list, stats
+    
+    def _enforce_budget(
+        self,
+        sampled_list: List[Transaction],
+        recent: List[Transaction],
+        top_x_txs: List[Transaction],
+        stratified: List[Transaction],
+        recency_cutoff: datetime,
+    ) -> List[Transaction]:
+        """
+        Enforce target_char_budget by trimming transactions in priority order.
+        
+        Priority (highest to lowest):
+        1. Recent transactions (within recency_days)
+        2. Top X by absolute amount
+        3. Stratified samples
+        4. Everything else
+        
+        Args:
+            sampled_list: Current list of sampled transactions
+            recent: List of recent transactions
+            top_x_txs: List of top X transactions
+            stratified: List of stratified transactions
+            recency_cutoff: Cutoff date for recency
+            
+        Returns:
+            Trimmed list that fits within budget
+        """
+        # Create priority sets for efficient lookup
+        recent_set = {tx.id or id(tx) for tx in recent}
+        top_x_set = {tx.id or id(tx) for tx in top_x_txs}
+        stratified_set = {tx.id or id(tx) for tx in stratified}
+        
+        # Classify transactions by priority
+        priority_1 = []  # Recent
+        priority_2 = []  # Top X (but not recent)
+        priority_3 = []  # Stratified (but not recent or top X)
+        priority_4 = []  # Everything else
+        
+        for tx in sampled_list:
+            tx_id = tx.id or id(tx)
+            if tx_id in recent_set:
+                priority_1.append(tx)
+            elif tx_id in top_x_set:
+                priority_2.append(tx)
+            elif tx_id in stratified_set:
+                priority_3.append(tx)
+            else:
+                priority_4.append(tx)
+        
+        # Build result in priority order, checking budget at each step
+        result = []
+        
+        # Helper to check if adding a transaction would exceed budget
+        def would_fit(tx: Transaction) -> bool:
+            test_result = result + [tx]
+            compact = self.to_compact_string(test_result)
+            return len(compact) <= self.target_char_budget
+        
+        # Add priority 1 (recent) - always keep these if they fit
+        for tx in priority_1:
+            if would_fit(tx):
+                result.append(tx)
+            else:
+                # Can't fit this one, stop adding from this priority
+                break
+        
+        # Add priority 2 (top X, not recent)
+        for tx in priority_2:
+            if would_fit(tx):
+                result.append(tx)
+            else:
+                break
+        
+        # Add priority 3 (stratified, not recent or top X)
+        for tx in priority_3:
+            if would_fit(tx):
+                result.append(tx)
+            else:
+                break
+        
+        # Add priority 4 (everything else) if we still have budget
+        for tx in priority_4:
+            if would_fit(tx):
+                result.append(tx)
+            else:
+                break
+        
+        return result
     
     def _stratified_sample(
         self,

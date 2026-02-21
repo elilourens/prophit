@@ -1,5 +1,5 @@
 """Feature extraction from transactions."""
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
 from app.models.transaction import Transaction
 
@@ -11,9 +11,15 @@ class FeatureExtractor:
         self,
         transactions: List[Transaction],
         days: int = 30,
+        as_of: Optional[datetime] = None,
     ) -> Dict[str, Any]:
         """
         Extract balance health features.
+        
+        Args:
+            transactions: List of transactions
+            days: Number of days to look back
+            as_of: Reference date for calculation. If None, uses current UTC time.
         
         Returns:
             Dictionary with balance statistics
@@ -27,8 +33,9 @@ class FeatureExtractor:
                 "balance_trend": "unknown",
             }
         
-        # Filter to last N days
-        cutoff = datetime.utcnow() - timedelta(days=days)
+        # Filter to last N days relative to reference date
+        reference_date = as_of if as_of else datetime.now(timezone.utc)
+        cutoff = reference_date - timedelta(days=days)
         recent = [tx for tx in transactions if tx.timestamp >= cutoff]
         
         balances = [tx.balance_after for tx in recent if tx.balance_after is not None]

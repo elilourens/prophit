@@ -1,0 +1,4 @@
+timestamp,amount,currency,description,category,balance_after
+2026-02-19T15:12:40Z,-4.20,GBP,Starbucks,Coffee,1200.50
+2026-02-21T15:12:40Z,-12.00,GBP,Pret,Lunch,1188.50
+2026-01-27T15:12:40Z,2500.00,GBP,Employer Ltd,Salary,3688.50

@@ -8,13 +8,35 @@ cd backend
 uvicorn app.main:app --reload
 ```
 
-2. **Upload transactions:**
+2. **Upload transactions (CSV with Z-suffix timestamps):**
+```bash
+curl -X POST "http://localhost:8000/transactions/upload?user_id=user123" \
+  -F "file=@examples/transactions_sample.csv"
+```
+
+**CSV Format Requirements:**
+- Required columns: `timestamp`, `amount`, `currency`, `description`
+- Optional columns: `category`, `balance_after`
+- Timestamp formats supported:
+  - ISO with Z: `2024-01-02T09:10:00Z` (recommended)
+  - ISO with timezone: `2024-01-02T09:10:00+00:00`
+  - ISO without timezone: `2024-01-02T09:10:00`
+  - Space-separated: `2024-01-02 09:10:00`
+
+**Example CSV:**
+```csv
+timestamp,amount,currency,description,category,balance_after
+2024-01-01T08:30:00Z,-5.50,USD,STARBUCKS #1234,Food & Dining,1250.50
+2024-01-02T09:00:00Z,-120.00,USD,WHOLE FOODS MARKET,Groceries,1084.51
+```
+
+3. **Upload transactions (JSON):**
 ```bash
 curl -X POST "http://localhost:8000/transactions/upload?user_id=user123" \
   -F "file=@examples/transactions_sample.json"
 ```
 
-3. **Run summarization:**
+4. **Run summarization (with as_of for historical data):**
 ```bash
 curl -X POST "http://localhost:8000/summaries/run" \
   -H "Content-Type: application/json" \
@@ -25,9 +47,12 @@ curl -X POST "http://localhost:8000/summaries/run" \
     "stratified_n": 80,
     "llm_models": ["mock:gpt", "mock:claude", "mock:gemini"],
     "judge_model": "mock:judge",
-    "target_char_budget": 20000
+    "target_char_budget": 20000,
+    "as_of": "2024-01-31T00:00:00Z"
   }'
 ```
+
+**Note:** The `as_of` parameter allows analyzing historical data. Without it, the window is relative to current time. With `as_of="2024-01-31T00:00:00Z"` and `window_days=30`, the system analyzes transactions from 2024-01-01 to 2024-01-31.
 
 4. **Get latest summaries:**
 ```bash

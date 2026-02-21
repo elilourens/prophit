@@ -1,11 +1,13 @@
 """Summary and response models."""
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 
 
 class SummaryResponse(BaseModel):
     """Base summary response from an LLM."""
+    
+    model_config = ConfigDict(protected_namespaces=())
     
     model_id: str = Field(..., description="Identifier of the LLM model")
     summary_type: str = Field(..., description="'daily' or 'monthly'")
@@ -32,6 +34,8 @@ class MonthlySummary(SummaryResponse):
 class JudgeOutput(BaseModel):
     """Judge model output selecting best summary."""
     
+    model_config = ConfigDict(protected_namespaces=())
+    
     winning_model_id: str = Field(..., description="ID of the winning model")
     ranked_models: List[str] = Field(default_factory=list, description="All models ranked by quality")
     reasons: List[str] = Field(default_factory=list, description="Reasons for selection")
@@ -49,6 +53,7 @@ class SummaryRunRequest(BaseModel):
                                    description="List of LLM model identifiers")
     judge_model: str = Field(default="mock:judge", description="Judge model identifier")
     target_char_budget: int = Field(default=20000, ge=1000, description="Target character budget for sampling")
+    as_of: Optional[datetime] = Field(None, description="Reference date for window calculation. If not provided, uses current UTC time. Window is [as_of - window_days, as_of]")
 
 
 class SamplingStats(BaseModel):

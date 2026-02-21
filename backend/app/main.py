@@ -1,7 +1,7 @@
 """FastAPI main application."""
 import csv
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from fastapi import FastAPI, UploadFile, File, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -21,7 +21,8 @@ from app.services.features import FeatureExtractor
 from app.services.prompts import PromptBuilder
 from app.services.summarization import SummarizationService
 from app.services.judge import JudgeService
-from app.utils.privacy import obfuscate_transactions
+from app.utils.privacy import obfuscate_transactions, obfuscate_merchant
+from app.utils.timestamp import parse_timestamp
 
 app = FastAPI(title=settings.app_name, debug=settings.debug)
 
@@ -46,11 +47,17 @@ async def upload_transactions(
     """
     Upload transactions from CSV or JSON file.
     
-    Expected CSV format:
-    timestamp,amount,currency,description,category,balance_after
+    Required CSV columns: timestamp, amount, currency, description
+    Optional CSV columns: category, balance_after
+    
+    Accepted timestamp formats:
+    - ISO with Z: "2024-01-02T09:10:00Z"
+    - ISO with timezone: "2024-01-02T09:10:00+00:00"
+    - ISO without timezone: "2024-01-02T09:10:00"
+    - Space-separated: "2024-01-02 09:10:00"
     
     Expected JSON format:
-    [{"timestamp": "...", "amount": ..., ...}, ...]
+    [{"timestamp": "...", "amount": ..., "currency": "...", "description": "...", ...}, ...]
     """
     transaction_store, _ = get_db()
     
@@ -59,15 +66,25 @@ async def upload_transactions(
         text_content = content.decode("utf-8")
         
         transactions = []
+        invalid_rows = []
+        invalid_count = 0
         
         if file.filename.endswith(".csv"):
             # Parse CSV
             reader = csv.DictReader(text_content.splitlines())
-            for row in reader:
+            for row_num, row in enumerate(reader, start=2):  # Start at 2 (row 1 is header)
                 try:
+                    # Validate required fields
+                    if "timestamp" not in row or not row["timestamp"]:
+                        raise ValueError("Missing required field: timestamp")
+                    if "amount" not in row or not row["amount"]:
+                        raise ValueError("Missing required field: amount")
+                    if "description" not in row or not row["description"]:
+                        raise ValueError("Missing required field: description")
+                    
                     tx = TransactionCreate(
                         user_id=user_id,
-                        timestamp=datetime.fromisoformat(row["timestamp"]),
+                        timestamp=parse_timestamp(row["timestamp"]),
                         amount=float(row["amount"]),
                         currency=row.get("currency", "USD"),
                         description=row["description"],
@@ -76,18 +93,45 @@ async def upload_transactions(
                     )
                     transactions.append(tx)
                 except Exception as e:
-                    # Skip invalid rows
-                    print(f"Skipping invalid row: {e}")
+                    invalid_count += 1
+                    error_msg = str(e)
+                    # Obfuscate merchant names in error messages
+                    if "description" in row:
+                        obfuscated_desc = obfuscate_merchant(row["description"])
+                        error_msg = error_msg.replace(row["description"], obfuscated_desc)
+                    if invalid_count <= 5:  # Only store first 5 errors
+                        invalid_rows.append(f"Row {row_num}: {error_msg}")
                     continue
         
         elif file.filename.endswith(".json"):
             # Parse JSON
-            data = json.loads(text_content)
-            for item in data:
+            try:
+                data = json.loads(text_content)
+            except json.JSONDecodeError as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid JSON format: {str(e)}"
+                )
+            
+            if not isinstance(data, list):
+                raise HTTPException(
+                    status_code=400,
+                    detail="JSON must be an array of transaction objects"
+                )
+            
+            for item_num, item in enumerate(data, start=1):
                 try:
+                    # Validate required fields
+                    if "timestamp" not in item or not item["timestamp"]:
+                        raise ValueError("Missing required field: timestamp")
+                    if "amount" not in item:
+                        raise ValueError("Missing required field: amount")
+                    if "description" not in item or not item["description"]:
+                        raise ValueError("Missing required field: description")
+                    
                     tx = TransactionCreate(
                         user_id=user_id,
-                        timestamp=datetime.fromisoformat(item["timestamp"]),
+                        timestamp=parse_timestamp(str(item["timestamp"])),
                         amount=float(item["amount"]),
                         currency=item.get("currency", "USD"),
                         description=item["description"],
@@ -96,30 +140,66 @@ async def upload_transactions(
                     )
                     transactions.append(tx)
                 except Exception as e:
-                    print(f"Skipping invalid item: {e}")
+                    invalid_count += 1
+                    error_msg = str(e)
+                    # Obfuscate merchant names in error messages
+                    if "description" in item:
+                        obfuscated_desc = obfuscate_merchant(str(item["description"]))
+                        error_msg = error_msg.replace(str(item["description"]), obfuscated_desc)
+                    if invalid_count <= 5:  # Only store first 5 errors
+                        invalid_rows.append(f"Item {item_num}: {error_msg}")
                     continue
         else:
             raise HTTPException(status_code=400, detail="File must be CSV or JSON")
         
+        # Check if we have any valid transactions
         if not transactions:
-            raise HTTPException(status_code=400, detail="No valid transactions found in file")
+            error_detail = "No valid transactions found in uploaded file."
+            if invalid_count > 0:
+                error_detail += f" {invalid_count} row(s) were invalid."
+                if invalid_rows:
+                    error_detail += " First errors: " + "; ".join(invalid_rows[:3])
+            raise HTTPException(status_code=400, detail=error_detail)
         
         # Store transactions
-        count = transaction_store.add_transactions(transactions)
+        try:
+            count = transaction_store.add_transactions(transactions)
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error storing transactions: {str(e)}"
+            )
         
         # Get date range
-        stats = transaction_store.get_transaction_stats(user_id)
+        try:
+            stats = transaction_store.get_transaction_stats(user_id)
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error retrieving transaction stats: {str(e)}"
+            )
+        
+        message = f"Successfully uploaded {count} transactions"
+        if invalid_count > 0:
+            message += f" ({invalid_count} invalid row(s) skipped)"
         
         return UploadResponse(
             user_id=user_id,
             transaction_count=count,
             date_range_start=stats.get("date_range_start"),
             date_range_end=stats.get("date_range_end"),
-            message=f"Successfully uploaded {count} transactions",
+            message=message,
         )
     
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+        # Catch any unexpected exceptions and return proper 500
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing file: {str(e)}"
+        )
 
 
 @app.post("/summaries/run", response_model=SummaryRunResponse)
@@ -130,14 +210,31 @@ async def run_summarization(request: SummaryRunRequest):
     2. Extract features
     3. Generate summaries from multiple LLMs
     4. Judge and select best summaries
+    
+    The window is calculated as [as_of - window_days, as_of]. If as_of is not provided,
+    it defaults to the current UTC time. This allows testing with historical data by
+    specifying an as_of date in the past.
     """
     transaction_store, summary_store = get_db()
     
-    # Get transactions
-    cutoff_date = datetime.utcnow() - timedelta(days=request.window_days)
+    # Determine reference date for window calculation
+    if request.as_of:
+        reference_date = request.as_of
+        # Ensure timezone-aware (assume UTC if naive)
+        if reference_date.tzinfo is None:
+            reference_date = reference_date.replace(tzinfo=timezone.utc)
+    else:
+        reference_date = datetime.now(timezone.utc)
+    
+    # Calculate window: [as_of - window_days, as_of]
+    start_date = reference_date - timedelta(days=request.window_days)
+    end_date = reference_date
+    
+    # Get transactions within the window
     transactions = transaction_store.get_transactions(
         request.user_id,
-        start_date=cutoff_date,
+        start_date=start_date,
+        end_date=end_date,
     )
     
     if not transactions:
@@ -152,11 +249,18 @@ async def run_summarization(request: SummaryRunRequest):
         stratified_n=request.stratified_n,
         target_char_budget=request.target_char_budget,
     )
-    sampled_transactions, sampling_stats = sampler.sample(transactions, request.window_days)
+    sampled_transactions, sampling_stats = sampler.sample(
+        transactions, 
+        request.window_days,
+        as_of=reference_date,
+    )
     
     # Extract features
     aggregations = feature_extractor.extract_aggregations(sampled_transactions)
-    balance_health = feature_extractor.extract_balance_health(sampled_transactions)
+    balance_health = feature_extractor.extract_balance_health(
+        sampled_transactions,
+        as_of=reference_date,
+    )
     
     # Format for prompt
     transaction_data = feature_extractor.format_for_prompt(
