@@ -8,12 +8,12 @@ import {
   ActivityIndicator,
   ScrollView,
   Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
 import { theme } from '../components/theme';
 import { setUseUploadedData } from '../services/backendApi';
 
@@ -184,10 +184,19 @@ export default function OnboardingScreen() {
 
     setIsUploading(true);
     try {
-      // Read file content
-      const fileContent = await FileSystem.readAsStringAsync(selectedFile.uri, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
+      let fileContent: string;
+
+      if (Platform.OS === 'web') {
+        // Web: use fetch to read the blob
+        const response = await fetch(selectedFile.uri);
+        fileContent = await response.text();
+      } else {
+        // Native: use expo-file-system
+        const FileSystem = require('expo-file-system');
+        fileContent = await FileSystem.readAsStringAsync(selectedFile.uri, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+      }
 
       // Store the uploaded content and mark as using uploaded data
       setUseUploadedData(true, fileContent);
