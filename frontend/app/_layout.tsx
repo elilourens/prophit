@@ -10,6 +10,7 @@ import { theme } from '../components/theme';
 import { ProProvider } from '../contexts/ProContext';
 import { ArenaProvider, useArena } from '../contexts/ArenaContext';
 import { SolanaProvider } from '../contexts/SolanaContext';
+import { UserDataProvider } from '../contexts/UserDataContext';
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useArena();
@@ -53,8 +54,9 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ProProvider>
         <ArenaProvider>
-          <SolanaProvider>
-            <AuthGate>
+          <UserDataProvider>
+            <SolanaProvider>
+              <AuthGate>
             <StatusBar style="dark" />
             <Stack
             screenOptions={{
@@ -142,8 +144,9 @@ export default function RootLayout() {
               }}
             />
           </Stack>
-            </AuthGate>
-          </SolanaProvider>
+              </AuthGate>
+            </SolanaProvider>
+          </UserDataProvider>
         </ArenaProvider>
       </ProProvider>
     </SafeAreaProvider>

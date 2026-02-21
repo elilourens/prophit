@@ -22,7 +22,7 @@ global.Buffer = global.Buffer || Buffer;
 const DEVNET_URL = 'https://api.devnet.solana.com';
 const WALLET_STORAGE_KEY = '@prophit_solana_wallet';
 const AIRDROP_AMOUNT = 2 * LAMPORTS_PER_SOL; // 2 SOL for testing
-const NEW_USER_AIRDROP = 0.15 * LAMPORTS_PER_SOL; // 0.15 SOL for new users (1 stake + fees)
+const NEW_USER_AIRDROP = 150000000; // 0.15 SOL in lamports (150,000,000 lamports)
 
 // Faucet wallet with 5 SOL (funds new users)
 // Public key: 555qw2ptWiijsYw1ZnD7Ryk5wo1QasVTcM2eUYK3fgJs
@@ -80,7 +80,7 @@ class SolanaService {
     this.faucetWallet = Keypair.fromSecretKey(FAUCET_WALLET_SECRET);
   }
 
-  // Fund a new wallet from the faucet (0.1 SOL)
+  // Fund a new wallet from the faucet (0.15 SOL)
   private async fundFromFaucet(newWalletPubkey: PublicKey): Promise<TransactionResult> {
     try {
       console.log('Funding new wallet from faucet...');
@@ -144,7 +144,7 @@ class SolanaService {
         JSON.stringify({ secretKey: secretKeyBase64 })
       );
 
-      // Fund new wallet from our faucet (0.1 SOL)
+      // Fund new wallet from our faucet (0.15 SOL)
       await this.fundFromFaucet(this.wallet.publicKey);
       const balance = await this.getBalance();
 
