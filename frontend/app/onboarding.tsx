@@ -14,9 +14,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { theme } from '../components/theme';
 import { setUseUploadedData } from '../services/backendApi';
+import { useUserData } from '../contexts/UserDataContext';
 
 const { width } = Dimensions.get('window');
 
@@ -131,6 +132,7 @@ interface SelectedFile {
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  const { reloadUserData } = useUserData();
   const [step, setStep] = useState(0);
   const [selectedSource, setSelectedSource] = useState<DataSourceOption | null>(null);
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
@@ -229,9 +231,12 @@ export default function OnboardingScreen() {
 
       // Store the uploaded content and mark as using uploaded data
       // This may call the backend for PDF parsing
-      const success = await setUseUploadedData(true, fileContent);
+      // Pass the file URI for React Native (avoids Blob creation issues)
+      const success = await setUseUploadedData(true, fileContent, isPDF ? selectedFile.uri : undefined);
 
       if (success) {
+        // Reload user data context to use the uploaded data
+        await reloadUserData();
         // Navigate to app
         router.replace('/(tabs)');
       } else {

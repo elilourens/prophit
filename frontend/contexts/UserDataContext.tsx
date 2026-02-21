@@ -8,7 +8,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useArena } from './ArenaContext';
 import { supabase } from '../services/supabase';
-import { initUserData, clearUserData, getCachedUserDataset } from '../services/backendApi';
+import { initUserData, clearUserData, getCachedUserDataset, isUsingUploadedData, restoreUploadedData } from '../services/backendApi';
 import { UserDataset, getRandomAvailableDatasetId, getDatasetById } from '../services/fakeDatasets';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -55,6 +55,29 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
   const loadOrAssignDataset = async (userId: string) => {
     try {
       setIsDataLoaded(false);
+
+      // First, try to restore uploaded data from storage (survives app reload)
+      const restoredUploaded = await restoreUploadedData();
+      if (restoredUploaded) {
+        const uploadedDataset = getCachedUserDataset();
+        if (uploadedDataset && uploadedDataset.transactions.length > 0) {
+          console.log('Using restored uploaded data:', uploadedDataset.transactions.length, 'transactions');
+          setUserDataset(uploadedDataset);
+          setIsDataLoaded(true);
+          return;
+        }
+      }
+
+      // If user uploaded their own data (PDF/CSV), use that instead of fake data
+      if (isUsingUploadedData()) {
+        const uploadedDataset = getCachedUserDataset();
+        if (uploadedDataset && uploadedDataset.transactions.length > 0) {
+          console.log('Using uploaded user data instead of fake dataset');
+          setUserDataset(uploadedDataset);
+          setIsDataLoaded(true);
+          return;
+        }
+      }
 
       // First check local storage (fastest)
       const localId = await AsyncStorage.getItem(LOCAL_DATASET_KEY);
@@ -154,6 +177,26 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
   };
 
   const reloadUserData = async () => {
+    // First try to restore from storage
+    const restoredUploaded = await restoreUploadedData();
+    if (restoredUploaded) {
+      const uploadedDataset = getCachedUserDataset();
+      if (uploadedDataset) {
+        console.log('Reloaded uploaded data from storage');
+        setUserDataset(uploadedDataset);
+        setIsDataLoaded(true);
+        return;
+      }
+    }
+    // If using uploaded data in memory, just refresh from cache
+    if (isUsingUploadedData()) {
+      const uploadedDataset = getCachedUserDataset();
+      if (uploadedDataset) {
+        setUserDataset(uploadedDataset);
+        setIsDataLoaded(true);
+        return;
+      }
+    }
     if (user) {
       await loadOrAssignDataset(user.id);
     }

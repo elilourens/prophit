@@ -28,9 +28,18 @@ export const ComparisonChart: React.FC<ComparisonChartProps> = ({
   data,
   title
 }) => {
-  const maxValue = Math.max(
-    ...data.flatMap(d => [d.thisWeek, d.lastWeek])
-  ) * 1.1;
+  // Guard against empty data or all zeros
+  if (!data || data.length === 0) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.legendText}>No data available</Text>
+      </View>
+    );
+  }
+
+  const allValues = data.flatMap(d => [d.thisWeek || 0, d.lastWeek || 0]);
+  const rawMax = Math.max(...allValues);
+  const maxValue = (rawMax > 0 ? rawMax : 100) * 1.1; // Default to 100 if all zeros
 
   const graphHeight = CHART_HEIGHT - PADDING_TOP - PADDING_BOTTOM;
   const groupWidth = BAR_WIDTH * 2 + 8;

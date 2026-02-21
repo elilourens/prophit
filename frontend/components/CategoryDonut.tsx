@@ -20,7 +20,25 @@ export const CategoryDonut: React.FC<CategoryDonutProps> = ({
   data,
   size = Math.min(SCREEN_WIDTH * 0.5, 200)
 }) => {
-  const total = data.reduce((sum, item) => sum + item.value, 0);
+  // Guard against empty data
+  if (!data || data.length === 0) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.totalLabel}>No data available</Text>
+      </View>
+    );
+  }
+
+  const total = data.reduce((sum, item) => sum + (item.value || 0), 0);
+
+  // Guard against zero total (would cause division by zero)
+  if (total === 0) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.totalLabel}>No spending data</Text>
+      </View>
+    );
+  }
   const cx = size / 2;
   const cy = size / 2;
   const outerRadius = size / 2 - 10;
@@ -30,7 +48,7 @@ export const CategoryDonut: React.FC<CategoryDonutProps> = ({
   let startAngle = -90; // Start from top
 
   const arcs = data.map((item) => {
-    const percentage = item.value / total;
+    const percentage = (item.value || 0) / total;
     const angle = percentage * 360;
     const endAngle = startAngle + angle;
 

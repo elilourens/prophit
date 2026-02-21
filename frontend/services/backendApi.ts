@@ -8,8 +8,14 @@
  */
 
 import { UserDataset, Transaction, TransactionSummary, FAKE_DATASETS, getDatasetById } from './fakeDatasets';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const BASE_URL = 'https://backend.prophit.lissan.dev';
+// TODO: Change back to 'https://backend.prophit.lissan.dev' for production
+const BASE_URL = 'http://172.20.10.11:8003';
+
+// Keys for persisting uploaded data
+const UPLOADED_DATA_KEY = '@prophit_uploaded_data';
+const USING_UPLOADED_KEY = '@prophit_using_uploaded';
 
 // Cached user dataset (loaded on app init or from upload)
 let cachedUserDataset: UserDataset | null = null;
@@ -149,8 +155,20 @@ async function uploadFileToGradio(fileContent: string, filename: string): Promis
 let useUploadedData = false;
 let uploadedFileContent: string | null = null;
 
-export async function setUseUploadedData(value: boolean, fileContent?: string): Promise<boolean> {
+export async function setUseUploadedData(value: boolean, fileContent?: string, fileUri?: string): Promise<boolean> {
   useUploadedData = value;
+
+  // Persist the flag
+  await AsyncStorage.setItem(USING_UPLOADED_KEY, value ? 'true' : 'false');
+
+  if (!value) {
+    // Clear uploaded data
+    await AsyncStorage.removeItem(UPLOADED_DATA_KEY);
+    cachedUserDataset = null;
+    uploadedFileContent = null;
+    return true;
+  }
+
   if (fileContent) {
     uploadedFileContent = fileContent;
 
@@ -158,9 +176,12 @@ export async function setUseUploadedData(value: boolean, fileContent?: string): 
     if (fileContent.startsWith('data:application/pdf;base64,')) {
       console.log('PDF detected - sending to backend for parsing...');
       try {
-        const parsedData = await parsePDFViaBackend(fileContent);
+        const parsedData = await parsePDFViaBackend(fileContent, fileUri);
         if (parsedData && parsedData.transactions.length > 0) {
           cachedUserDataset = parsedData;
+          // Persist the parsed dataset
+          await AsyncStorage.setItem(UPLOADED_DATA_KEY, JSON.stringify(parsedData));
+          console.log('Uploaded data persisted to storage');
           return true;
         } else {
           console.warn('No transactions extracted from PDF');
@@ -176,6 +197,9 @@ export async function setUseUploadedData(value: boolean, fileContent?: string): 
     const parsedDataset = parseUploadedContent(fileContent);
     if (parsedDataset) {
       cachedUserDataset = parsedDataset;
+      // Persist the parsed dataset
+      await AsyncStorage.setItem(UPLOADED_DATA_KEY, JSON.stringify(parsedDataset));
+      console.log('Uploaded data persisted to storage');
       return true;
     }
     return false;
@@ -185,24 +209,33 @@ export async function setUseUploadedData(value: boolean, fileContent?: string): 
 
 /**
  * Send PDF to backend for parsing and extract transactions
+ * @param base64Content - Base64 encoded PDF content with data URI prefix
+ * @param fileUri - Optional file URI for React Native (avoids Blob creation)
  */
-async function parsePDFViaBackend(base64Content: string): Promise<UserDataset | null> {
+async function parsePDFViaBackend(base64Content: string, fileUri?: string): Promise<UserDataset | null> {
   try {
-    // Extract just the base64 data without the prefix
-    const base64Data = base64Content.replace('data:application/pdf;base64,', '');
-
-    // Convert base64 to blob for upload
-    const byteCharacters = atob(base64Data);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: 'application/pdf' });
-
-    // Upload file to Gradio
     const formData = new FormData();
-    formData.append('files', blob, 'statement.pdf');
+
+    // React Native: use file URI directly (Blob from ArrayBuffer not supported)
+    if (fileUri && typeof fileUri === 'string' && !fileUri.startsWith('blob:')) {
+      console.log('Using file URI for upload:', fileUri);
+      formData.append('files', {
+        uri: fileUri,
+        type: 'application/pdf',
+        name: 'statement.pdf',
+      } as any);
+    } else {
+      // Web: convert base64 to Blob
+      const base64Data = base64Content.replace('data:application/pdf;base64,', '');
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      formData.append('files', blob, 'statement.pdf');
+    }
 
     console.log('Uploading PDF to backend...');
     const uploadRes = await fetch(`${BASE_URL}/gradio_api/upload`, {
@@ -536,6 +569,31 @@ export function getUploadedFileContent(): string | null {
 }
 
 /**
+ * Restore uploaded data from AsyncStorage on app start.
+ * Call this early in app initialization.
+ */
+export async function restoreUploadedData(): Promise<boolean> {
+  try {
+    const usingUploaded = await AsyncStorage.getItem(USING_UPLOADED_KEY);
+    if (usingUploaded === 'true') {
+      const storedData = await AsyncStorage.getItem(UPLOADED_DATA_KEY);
+      if (storedData) {
+        const parsedData = JSON.parse(storedData) as UserDataset;
+        if (parsedData && parsedData.transactions && parsedData.transactions.length > 0) {
+          cachedUserDataset = parsedData;
+          useUploadedData = true;
+          console.log('Restored uploaded data from storage:', parsedData.transactions.length, 'transactions');
+          return true;
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error restoring uploaded data:', error);
+  }
+  return false;
+}
+
+/**
  * Upload file and get calendar predictions from REAL backend
  * Uses the calendar_uploaded Gradio endpoint
  */
@@ -561,12 +619,20 @@ export async function getCalendarPredictionsFromBackend(fileContent: string): Pr
       };
     }
 
-    // Fallback to local generation
-    return generateLocalPredictions(fileContent);
+    // Fallback to local generation using cached dataset
+    const cachedData = getCachedUserDataset();
+    if (cachedData) {
+      return generateLocalPredictions(JSON.stringify({ transactions: cachedData.transactions, summary: cachedData.summary }));
+    }
+    return { calendar: '', predictions: [] };
   } catch (error) {
     console.error('Backend calendar prediction error:', error);
-    // Fallback to local generation
-    return generateLocalPredictions(fileContent);
+    // Fallback to local generation using cached dataset
+    const cachedData = getCachedUserDataset();
+    if (cachedData) {
+      return generateLocalPredictions(JSON.stringify({ transactions: cachedData.transactions, summary: cachedData.summary }));
+    }
+    return { calendar: '', predictions: [] };
   }
 }
 
@@ -593,32 +659,46 @@ export async function getTransactionAnalysisFromBackend(fileContent: string): Pr
       };
     }
 
-    return generateLocalAnalysis(fileContent);
+    // Fallback to local generation using cached dataset
+    const cachedData = getCachedUserDataset();
+    if (cachedData) {
+      return generateLocalAnalysis(JSON.stringify({ transactions: cachedData.transactions, summary: cachedData.summary }));
+    }
+    return { claudeAnalysis: '', geminiAnalysis: '', gptAnalysis: '' };
   } catch (error) {
     console.error('Backend analysis error:', error);
-    return generateLocalAnalysis(fileContent);
+    // Fallback to local generation using cached dataset
+    const cachedData = getCachedUserDataset();
+    if (cachedData) {
+      return generateLocalAnalysis(JSON.stringify({ transactions: cachedData.transactions, summary: cachedData.summary }));
+    }
+    return { claudeAnalysis: '', geminiAnalysis: '', gptAnalysis: '' };
   }
 }
 
 /**
- * Generate calendar predictions - uses backend if uploaded data, otherwise local
+ * Generate calendar predictions - uses cached dataset if available
  */
 export function getCalendarPredictions(transactionData: string): Promise<{
   calendar: string;
   predictions: CalendarPrediction[];
 }> {
-  if (useUploadedData && uploadedFileContent) {
-    return getCalendarPredictionsFromBackend(uploadedFileContent);
+  // If using uploaded data, use cached dataset directly (not raw file content)
+  if (useUploadedData && cachedUserDataset) {
+    const jsonData = JSON.stringify({ transactions: cachedUserDataset.transactions, summary: cachedUserDataset.summary });
+    return Promise.resolve(generateLocalPredictions(jsonData));
   }
   return Promise.resolve(generateLocalPredictions(transactionData));
 }
 
 /**
- * Get transaction analysis - uses backend if uploaded data, otherwise local
+ * Get transaction analysis - uses cached dataset if available
  */
 export function getTransactionAnalysis(transactionData: string): Promise<AnalysisResult> {
-  if (useUploadedData && uploadedFileContent) {
-    return getTransactionAnalysisFromBackend(uploadedFileContent);
+  // If using uploaded data, use cached dataset directly (not raw file content)
+  if (useUploadedData && cachedUserDataset) {
+    const jsonData = JSON.stringify({ transactions: cachedUserDataset.transactions, summary: cachedUserDataset.summary });
+    return Promise.resolve(generateLocalAnalysis(jsonData));
   }
   return Promise.resolve(generateLocalAnalysis(transactionData));
 }

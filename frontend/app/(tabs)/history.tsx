@@ -83,15 +83,32 @@ export default function HistoryScreen() {
     setActiveTab(tab);
   };
 
-  // Get user's transaction data
-  const dataset = getCachedUserDataset();
-  const transactions = dataset?.transactions || [];
-  const dataRangeMonths = dataset?.summary?.dataRangeMonths || 24;
+  // Get user's transaction data with error handling
+  let dataset = null;
+  let transactions: any[] = [];
+  let dataRangeMonths = 24;
+
+  try {
+    dataset = getCachedUserDataset();
+    transactions = dataset?.transactions || [];
+    dataRangeMonths = dataset?.summary?.dataRangeMonths || 24;
+  } catch (error) {
+    console.error('Error loading dataset in history:', error);
+  }
+
   const hasLimitedData = dataRangeMonths < 3;
 
   // Calculate data based on selected time period
   const { categoryData, comparisonData, alertsData, totalThis, totalLast, insufficientData } = useMemo(() => {
-    const now = new Date('2026-02-21');
+    try {
+    // Use the latest transaction date as reference, or today if no transactions
+    let now = new Date();
+    if (transactions.length > 0) {
+      const dates = transactions.map(t => new Date(t.date).getTime()).filter(d => !isNaN(d));
+      if (dates.length > 0) {
+        now = new Date(Math.max(...dates));
+      }
+    }
     let periodDays: number;
     let labels: string[];
     let periodCount: number;
@@ -276,6 +293,17 @@ export default function HistoryScreen() {
       totalLast: Math.round(totalLast),
       insufficientData: hasInsufficientData,
     };
+    } catch (error) {
+      console.error('Error calculating history data:', error);
+      return {
+        categoryData: DEFAULT_CATEGORY_DATA,
+        comparisonData: DEFAULT_COMPARISON_DATA,
+        alertsData: DEFAULT_ALERTS_DATA,
+        totalThis: 0,
+        totalLast: 0,
+        insufficientData: true,
+      };
+    }
   }, [activeTab, transactions, dataRangeMonths]);
 
   const periodDifference = totalLast > 0
