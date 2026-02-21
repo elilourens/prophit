@@ -14,6 +14,4 @@ httpx==0.25.2
 openai==1.3.7
 anthropic==0.7.8
 google-generativeai==0.3.1
-
-# Note: If you need ollama support, use requirements-ollama.txt instead
-# as it requires different httpx/pydantic versions that conflict with these.
+python-dotenv==1.0.1
