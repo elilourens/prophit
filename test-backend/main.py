@@ -33,6 +33,57 @@ from fastapi.responses import HTMLResponse
 load_dotenv()
 
 # ---------------------------------------------------------------------------
+# Logging: structured terminal output for week-ahead context debugging
+# ---------------------------------------------------------------------------
+_STANDARD_LOG_RECORD_KEYS = frozenset(
+    (
+        "name", "msg", "args", "created", "filename", "funcName", "levelname", "levelno",
+        "lineno", "module", "msecs", "pathname", "process", "processName", "relativeCreated",
+        "stack_info", "exc_info", "exc_text", "message", "thread", "threadName", "taskName",
+        "asctime", "getMessage",
+    )
+)
+
+
+def _format_extra(record: logging.LogRecord) -> str:
+    extra = {k: getattr(record, k) for k in record.__dict__ if k not in _STANDARD_LOG_RECORD_KEYS}
+    if not extra:
+        return ""
+    try:
+        return " | " + json.dumps(extra, default=str)
+    except Exception:
+        return " | " + str(extra)
+
+
+class ExtraFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        base = super().format(record)
+        suffix = _format_extra(record)
+        return base + suffix if suffix else base
+
+
+def _configure_logging() -> None:
+    if logging.root.handlers:
+        return
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(name)s | %(message)s")
+    for h in logging.root.handlers:
+        h.setFormatter(ExtraFormatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s"))
+
+
+_configure_logging()
+
+# Environment check (no secrets) for week-ahead context debugging
+logging.getLogger("context_service").info(
+    "Environment check",
+    extra={
+        "OPEN_METEO_BASE": os.getenv("OPEN_METEO_BASE"),
+        "OPEN_HOLIDAYS_BASE": os.getenv("OPEN_HOLIDAYS_BASE"),
+        "HTTP_PROXY": os.getenv("HTTP_PROXY"),
+        "HTTPS_PROXY": os.getenv("HTTPS_PROXY"),
+    },
+)
+
+# ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 
@@ -764,6 +815,16 @@ async def run_week_ahead_pipeline(
     country = country_code or USER_COUNTRY
     subdivision = subdivision_code or USER_SUBDIVISION
 
+    logger.info(
+        "Week-ahead pipeline started",
+        extra={
+            "start_date": start_date,
+            "lat": lat,
+            "lon": lon,
+            "country_code": country,
+            "subdivision_code": subdivision,
+        },
+    )
     from services.context_service import get_week_context_with_availability
     day_context, context_metadata = get_week_context_with_availability(start, lat, lon, country, subdivision)
     context_summary = _build_context_summary(day_context)
@@ -922,11 +983,15 @@ async def week_ahead_context_check(
     lon: float | None = None,
     country_code: str | None = None,
     subdivision_code: str | None = None,
+    debug: bool = False,
 ):
     """
     Quick check: fetch week context (weather + holidays) for the next 7 days and return day_context.
     Use to verify Open-Meteo and OpenHolidaysAPI calls succeed. No transaction file required.
+    If debug=true, sets root logger to DEBUG for this request for verbose logs.
     """
+    if debug:
+        logging.getLogger().setLevel(logging.DEBUG)
     start = date.today() + timedelta(days=1)
     from services.context_service import get_week_context_with_availability
     lat = float(lat) if lat is not None else (float(USER_LAT) if USER_LAT else None)

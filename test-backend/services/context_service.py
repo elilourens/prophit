@@ -14,7 +14,7 @@ from typing import Any
 
 import httpx
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("context_service")
 
 # Open-Meteo: no API key. Daily forecast 7 days.
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
@@ -67,20 +67,44 @@ def fetch_weather_open_meteo(
     Returns daily arrays: time, temperature_2m_max, temperature_2m_min,
     precipitation_sum, precipitation_probability_max, weathercode.
     """
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,weathercode",
+        "timezone": "auto",
+        "forecast_days": (end_date - start_date).days + 1,
+    }
+    logger.info(
+        "Calling Open-Meteo",
+        extra={"url": OPEN_METEO_URL, "params": params},
+    )
     try:
-        params = {
-            "latitude": lat,
-            "longitude": lon,
-            "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,weathercode",
-            "timezone": "auto",
-            "forecast_days": (end_date - start_date).days + 1,
-        }
         with httpx.Client(timeout=10.0) as client:
             r = client.get(OPEN_METEO_URL, params=params)
+            logger.info(
+                "Open-Meteo response",
+                extra={"status_code": r.status_code, "content_length": len(r.text)},
+            )
+            if r.status_code != 200:
+                logger.error(
+                    "Open-Meteo non-200 response",
+                    extra={
+                        "status_code": r.status_code,
+                        "body_preview": (r.text or "")[:300],
+                    },
+                )
             r.raise_for_status()
-            return r.json()
-    except Exception as e:
-        logger.warning("Open-Meteo fetch failed: %s", e)
+            weather_json = r.json()
+            logger.info(
+                "Parsed weather payload",
+                extra={
+                    "keys": list(weather_json.keys()),
+                    "daily_keys": list(weather_json.get("daily", {}).keys()),
+                },
+            )
+            return weather_json
+    except Exception:
+        logger.exception("Open-Meteo request failed")
         return None
 
 
@@ -107,29 +131,38 @@ def fetch_holidays_openholidays(
     if subdivision_code:
         params["subdivisionCode"] = subdivision_code
     logger.info(
-        "OpenHolidaysAPI request: baseUrl=%s countryCode=%s subdivision=%s validFrom=%s validTo=%s",
-        OPENHOLIDAYS_URL,
-        params["countryIsoCode"],
-        params.get("subdivisionCode") or "(none)",
-        params["validFrom"],
-        params["validTo"],
+        "Calling OpenHolidaysAPI",
+        extra={
+            "url": OPENHOLIDAYS_URL,
+            "params": params,
+        },
     )
     try:
         with httpx.Client(timeout=10.0) as client:
             r = client.get(OPENHOLIDAYS_URL, params=params, headers={"accept": "application/json"})
+            logger.info(
+                "OpenHolidaysAPI response",
+                extra={"status_code": r.status_code, "content_length": len(r.text)},
+            )
             if r.status_code != 200:
-                body_snippet = (r.text or "")[:200]
-                logger.warning(
-                    "OpenHolidaysAPI non-200: status=%s body=%s",
-                    r.status_code,
-                    body_snippet,
+                logger.error(
+                    "OpenHolidaysAPI non-200 response",
+                    extra={
+                        "status_code": r.status_code,
+                        "body_preview": (r.text or "")[:300],
+                    },
                 )
                 return [], f"API returned {r.status_code}"
             r.raise_for_status()
             data = r.json()
-            return (data if isinstance(data, list) else []), None
+            holiday_list = data if isinstance(data, list) else []
+            logger.info(
+                "Parsed holiday payload",
+                extra={"holiday_count": len(holiday_list) if isinstance(holiday_list, list) else None},
+            )
+            return holiday_list, None
     except Exception as e:
-        logger.warning("OpenHolidaysAPI fetch failed: %s", e)
+        logger.exception("OpenHolidaysAPI request failed")
         return [], str(e)
 
 
@@ -230,6 +263,16 @@ def _build_day_context_list(
         else:
             holiday = _holiday_block_unavailable(holiday_status, holiday_error)
         result.append({"date": d_str, "weekday": weekday, "weather": weather, "holiday": holiday})
+        logger.info(
+            "Day context built",
+            extra={
+                "date": d_str,
+                "weather_status": weather["weather_status"],
+                "holiday_status": holiday["holiday_status"],
+                "condition_summary": weather.get("condition_summary"),
+                "is_holiday": holiday.get("is_holiday"),
+            },
+        )
     return result
 
 
@@ -244,6 +287,17 @@ def get_week_context(
     Build 7 day_context objects for the week starting at start_date.
     Uses cache. On API failure, returns context with placeholder/unknown.
     """
+    logger.info(
+        "Building week-ahead context",
+        extra={
+            "lat": lat,
+            "lon": lon,
+            "country_code": country_code,
+            "subdivision_code": subdivision_code,
+            "start_date": start_date.isoformat(),
+            "days": 7,
+        },
+    )
     cache_key = f"{lat:.4f}_{lon:.4f}_{country_code}_{subdivision_code or ''}_{start_date.isoformat()}"
     now = time.time()
     if cache_key in _context_cache:
@@ -266,6 +320,16 @@ def get_week_context(
 
     result = _build_day_context_list(
         start_date, weather_data, holidays_data, holiday_status, holiday_error
+    )
+    weather_ok_count = sum(1 for d in result if (d.get("weather") or {}).get("weather_status") == "ok")
+    holiday_ok_count = sum(1 for d in result if (d.get("holiday") or {}).get("holiday_status") == "ok")
+    logger.info(
+        "Context coverage summary",
+        extra={
+            "weather_ok": weather_ok_count,
+            "holiday_ok": holiday_ok_count,
+            "total_days": len(result),
+        },
     )
     _context_cache[cache_key] = (result, now)
     return result
@@ -291,6 +355,18 @@ def get_week_context_with_availability(
     use_lat = float(lat) if lat is not None else (float(user_lat) if user_lat else DEFAULT_LAT)
     use_lon = float(lon) if lon is not None else (float(user_lon) if user_lon else DEFAULT_LON)
     use_country = (country_code or user_country or "").strip().upper()[:2] or None
+
+    logger.info(
+        "Building week-ahead context",
+        extra={
+            "lat": use_lat,
+            "lon": use_lon,
+            "country_code": use_country,
+            "subdivision_code": subdivision_code,
+            "start_date": start_date.isoformat(),
+            "days": 7,
+        },
+    )
 
     if lat is not None and lon is not None:
         location_source = "request"
@@ -355,6 +431,17 @@ def get_week_context_with_availability(
     context_used = any(_day_has_ok(c) for c in contexts)
     weather_ok = any((c.get("weather") or {}).get("weather_status") == "ok" for c in contexts)
     # holiday_ok already set above from fetch result
+
+    weather_ok_count = sum(1 for c in contexts if (c.get("weather") or {}).get("weather_status") == "ok")
+    holiday_ok_count = sum(1 for c in contexts if (c.get("holiday") or {}).get("holiday_status") == "ok")
+    logger.info(
+        "Context coverage summary",
+        extra={
+            "weather_ok": weather_ok_count,
+            "holiday_ok": holiday_ok_count,
+            "total_days": len(contexts),
+        },
+    )
 
     metadata = {
         "weather_ok": weather_ok,
