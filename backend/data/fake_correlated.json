@@ -1,0 +1,2810 @@
+{
+  "fetched_at": "2026-02-21T16:28:13.719677+00:00",
+  "statements": [
+    {
+      "account": {
+        "account_id": "account_fake_correlated",
+        "account_type": "TRANSACTION",
+        "display_name": "Synthetic Account",
+        "currency": "GBP"
+      },
+      "balance": {
+        "available": 125000.0,
+        "current": 125000.0,
+        "currency": "GBP"
+      },
+      "transactions": [
+        {
+          "transaction_id": "txn_20251125_1",
+          "timestamp": "2025-11-25T12:27:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -44.12,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251125_2",
+          "timestamp": "2025-11-25T20:43:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -44.12,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "salary_2025_11",
+          "timestamp": "2025-11-25T08:00:00Z",
+          "description": "MegaCorp Salary",
+          "amount": 7500.0,
+          "currency": "GBP",
+          "transaction_type": "CREDIT",
+          "transaction_category": "SALARY"
+        },
+        {
+          "transaction_id": "txn_20251126_3",
+          "timestamp": "2025-11-26T11:52:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -12.34,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251126_4",
+          "timestamp": "2025-11-26T14:25:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -12.34,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251126_5",
+          "timestamp": "2025-11-26T15:26:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -12.34,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251126_6",
+          "timestamp": "2025-11-26T20:44:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -12.34,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251126_7",
+          "timestamp": "2025-11-26T17:30:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -12.34,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251127_8",
+          "timestamp": "2025-11-27T16:57:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -14.74,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251127_9",
+          "timestamp": "2025-11-27T10:57:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -14.74,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251127_10",
+          "timestamp": "2025-11-27T18:30:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -14.74,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251127_11",
+          "timestamp": "2025-11-27T20:56:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -14.74,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251127_12",
+          "timestamp": "2025-11-27T17:45:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -14.74,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251128_13",
+          "timestamp": "2025-11-28T19:23:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -78.16,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251128_14",
+          "timestamp": "2025-11-28T15:17:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -78.16,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251129_15",
+          "timestamp": "2025-11-29T13:35:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -27.36,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251129_16",
+          "timestamp": "2025-11-29T13:57:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -27.36,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251129_17",
+          "timestamp": "2025-11-29T14:29:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -27.36,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251130_18",
+          "timestamp": "2025-11-30T17:51:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -40.32,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251130_19",
+          "timestamp": "2025-11-30T09:11:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -40.32,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251130_20",
+          "timestamp": "2025-11-30T12:42:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -40.32,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251201_21",
+          "timestamp": "2025-12-01T10:13:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -6.08,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251201_22",
+          "timestamp": "2025-12-01T13:37:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -6.08,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251202_23",
+          "timestamp": "2025-12-02T12:50:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -12.85,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251202_24",
+          "timestamp": "2025-12-02T19:43:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -12.85,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251202_25",
+          "timestamp": "2025-12-02T18:49:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -12.85,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251202_26",
+          "timestamp": "2025-12-02T10:42:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -12.85,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251202_27",
+          "timestamp": "2025-12-02T16:03:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -12.85,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251203_28",
+          "timestamp": "2025-12-03T13:16:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -77.35,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251204_29",
+          "timestamp": "2025-12-04T17:12:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -9.27,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251204_30",
+          "timestamp": "2025-12-04T16:41:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -9.27,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251204_31",
+          "timestamp": "2025-12-04T13:30:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -9.27,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251204_32",
+          "timestamp": "2025-12-04T10:06:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -9.27,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251204_33",
+          "timestamp": "2025-12-04T15:09:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -9.27,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251205_34",
+          "timestamp": "2025-12-05T12:24:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -17.91,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251206_35",
+          "timestamp": "2025-12-06T19:21:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -17.77,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251206_36",
+          "timestamp": "2025-12-06T14:08:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -17.77,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251206_37",
+          "timestamp": "2025-12-06T19:42:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -17.77,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251206_38",
+          "timestamp": "2025-12-06T19:32:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -17.77,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251207_39",
+          "timestamp": "2025-12-07T12:10:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -44.86,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251208_40",
+          "timestamp": "2025-12-08T16:55:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -48.36,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251209_41",
+          "timestamp": "2025-12-09T17:38:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -75.43,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251209_42",
+          "timestamp": "2025-12-09T11:45:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -75.43,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251210_43",
+          "timestamp": "2025-12-10T20:06:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -38.54,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251210_44",
+          "timestamp": "2025-12-10T17:37:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -38.54,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251210_45",
+          "timestamp": "2025-12-10T19:02:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -38.54,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251211_46",
+          "timestamp": "2025-12-11T17:10:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -113.33,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251212_47",
+          "timestamp": "2025-12-12T20:22:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -35.14,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251212_48",
+          "timestamp": "2025-12-12T10:55:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -35.14,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251212_49",
+          "timestamp": "2025-12-12T18:25:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -35.14,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251213_50",
+          "timestamp": "2025-12-13T17:45:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -11.13,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251213_51",
+          "timestamp": "2025-12-13T12:40:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -11.13,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251213_52",
+          "timestamp": "2025-12-13T11:33:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -11.13,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251213_53",
+          "timestamp": "2025-12-13T16:43:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -11.13,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251214_54",
+          "timestamp": "2025-12-14T18:46:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -5.98,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251214_55",
+          "timestamp": "2025-12-14T19:53:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -5.98,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251215_56",
+          "timestamp": "2025-12-15T17:14:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -38.94,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251215_57",
+          "timestamp": "2025-12-15T15:11:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -38.94,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251215_58",
+          "timestamp": "2025-12-15T18:47:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -38.94,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251215_59",
+          "timestamp": "2025-12-15T15:17:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -38.94,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251216_60",
+          "timestamp": "2025-12-16T20:18:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -6.92,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251216_61",
+          "timestamp": "2025-12-16T09:36:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -6.92,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251216_62",
+          "timestamp": "2025-12-16T10:16:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -6.92,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251216_63",
+          "timestamp": "2025-12-16T15:56:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -6.92,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251216_64",
+          "timestamp": "2025-12-16T17:43:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -6.92,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251217_65",
+          "timestamp": "2025-12-17T18:36:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -10.55,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251217_66",
+          "timestamp": "2025-12-17T16:00:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -10.55,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251217_67",
+          "timestamp": "2025-12-17T10:35:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -10.55,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251217_68",
+          "timestamp": "2025-12-17T11:47:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -10.55,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251218_69",
+          "timestamp": "2025-12-18T17:09:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -6.42,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251218_70",
+          "timestamp": "2025-12-18T13:39:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -6.42,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251218_71",
+          "timestamp": "2025-12-18T16:42:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -6.42,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251218_72",
+          "timestamp": "2025-12-18T17:19:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -6.42,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251218_73",
+          "timestamp": "2025-12-18T14:26:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -6.42,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251219_74",
+          "timestamp": "2025-12-19T18:51:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -29.02,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251219_75",
+          "timestamp": "2025-12-19T13:06:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -29.02,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251219_76",
+          "timestamp": "2025-12-19T10:44:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -29.02,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251219_77",
+          "timestamp": "2025-12-19T10:09:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -29.02,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251219_78",
+          "timestamp": "2025-12-19T11:20:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -29.02,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251220_79",
+          "timestamp": "2025-12-20T17:04:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -65.67,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251220_80",
+          "timestamp": "2025-12-20T19:53:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -65.67,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251221_81",
+          "timestamp": "2025-12-21T11:02:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -34.15,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251221_82",
+          "timestamp": "2025-12-21T17:16:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -34.15,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251221_83",
+          "timestamp": "2025-12-21T15:52:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -34.15,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251221_84",
+          "timestamp": "2025-12-21T13:09:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -34.15,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251221_85",
+          "timestamp": "2025-12-21T12:34:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -34.15,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251222_86",
+          "timestamp": "2025-12-22T10:40:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -30.63,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251222_87",
+          "timestamp": "2025-12-22T14:24:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -30.63,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251222_88",
+          "timestamp": "2025-12-22T11:47:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -30.63,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251222_89",
+          "timestamp": "2025-12-22T13:11:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -30.63,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251222_90",
+          "timestamp": "2025-12-22T16:33:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -30.63,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251223_91",
+          "timestamp": "2025-12-23T15:35:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -43.75,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251223_92",
+          "timestamp": "2025-12-23T12:25:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -43.75,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251223_93",
+          "timestamp": "2025-12-23T09:02:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -43.75,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251224_94",
+          "timestamp": "2025-12-24T20:25:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -39.69,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251224_95",
+          "timestamp": "2025-12-24T20:23:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -39.69,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251224_96",
+          "timestamp": "2025-12-24T13:52:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -39.69,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251224_97",
+          "timestamp": "2025-12-24T09:03:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -39.69,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251225_98",
+          "timestamp": "2025-12-25T17:06:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -140.27,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251225_99",
+          "timestamp": "2025-12-25T20:50:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -140.27,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251225_100",
+          "timestamp": "2025-12-25T10:05:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -140.27,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251225_101",
+          "timestamp": "2025-12-25T13:26:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -140.27,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251225_102",
+          "timestamp": "2025-12-25T13:25:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -140.27,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "salary_2025_12",
+          "timestamp": "2025-12-25T08:00:00Z",
+          "description": "MegaCorp Salary",
+          "amount": 7500.0,
+          "currency": "GBP",
+          "transaction_type": "CREDIT",
+          "transaction_category": "SALARY"
+        },
+        {
+          "transaction_id": "txn_20251226_103",
+          "timestamp": "2025-12-26T14:25:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -110.22,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251226_104",
+          "timestamp": "2025-12-26T11:19:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -110.22,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251226_105",
+          "timestamp": "2025-12-26T16:12:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -110.22,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251226_106",
+          "timestamp": "2025-12-26T19:29:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -110.22,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251227_107",
+          "timestamp": "2025-12-27T20:53:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -82.79,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251227_108",
+          "timestamp": "2025-12-27T13:32:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -82.79,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251228_109",
+          "timestamp": "2025-12-28T17:12:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -92.58,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251228_110",
+          "timestamp": "2025-12-28T12:10:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -92.58,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251229_111",
+          "timestamp": "2025-12-29T17:39:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -29.9,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251229_112",
+          "timestamp": "2025-12-29T17:53:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -29.9,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251229_113",
+          "timestamp": "2025-12-29T14:28:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -29.9,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251229_114",
+          "timestamp": "2025-12-29T19:51:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -29.9,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251230_115",
+          "timestamp": "2025-12-30T14:17:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -34.32,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251230_116",
+          "timestamp": "2025-12-30T20:56:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -34.32,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251230_117",
+          "timestamp": "2025-12-30T14:15:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -34.32,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251231_118",
+          "timestamp": "2025-12-31T17:17:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -19.41,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20251231_119",
+          "timestamp": "2025-12-31T16:22:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -19.41,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260101_120",
+          "timestamp": "2026-01-01T14:04:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -186.12,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260101_121",
+          "timestamp": "2026-01-01T20:12:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -186.12,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260101_122",
+          "timestamp": "2026-01-01T20:43:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -186.12,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260102_123",
+          "timestamp": "2026-01-02T19:03:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -68.35,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260103_124",
+          "timestamp": "2026-01-03T11:52:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -19.08,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260103_125",
+          "timestamp": "2026-01-03T12:28:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -19.08,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260104_126",
+          "timestamp": "2026-01-04T15:14:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -40.87,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260105_127",
+          "timestamp": "2026-01-05T15:49:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -5.14,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260105_128",
+          "timestamp": "2026-01-05T11:20:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -5.14,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260105_129",
+          "timestamp": "2026-01-05T10:57:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -5.14,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260106_130",
+          "timestamp": "2026-01-06T18:14:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -9.12,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260106_131",
+          "timestamp": "2026-01-06T15:13:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -9.12,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260106_132",
+          "timestamp": "2026-01-06T13:29:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -9.12,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260106_133",
+          "timestamp": "2026-01-06T20:43:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -9.12,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260106_134",
+          "timestamp": "2026-01-06T09:08:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -9.12,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260107_135",
+          "timestamp": "2026-01-07T15:00:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -31.15,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260108_136",
+          "timestamp": "2026-01-08T13:24:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -1.25,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260108_137",
+          "timestamp": "2026-01-08T09:26:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -1.25,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260108_138",
+          "timestamp": "2026-01-08T20:20:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -1.25,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260108_139",
+          "timestamp": "2026-01-08T09:42:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -1.25,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260109_140",
+          "timestamp": "2026-01-09T15:57:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -50.56,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260109_141",
+          "timestamp": "2026-01-09T10:27:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -50.56,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260110_142",
+          "timestamp": "2026-01-10T16:11:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -24.62,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260110_143",
+          "timestamp": "2026-01-10T19:22:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -24.62,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260110_144",
+          "timestamp": "2026-01-10T18:29:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -24.62,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260111_145",
+          "timestamp": "2026-01-11T14:11:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -70.26,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260111_146",
+          "timestamp": "2026-01-11T18:57:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -70.26,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260112_147",
+          "timestamp": "2026-01-12T12:41:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -82.21,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260112_148",
+          "timestamp": "2026-01-12T14:44:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -82.21,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260112_149",
+          "timestamp": "2026-01-12T18:14:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -82.21,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260113_150",
+          "timestamp": "2026-01-13T13:45:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -8.71,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260113_151",
+          "timestamp": "2026-01-13T19:26:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -8.71,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260113_152",
+          "timestamp": "2026-01-13T17:54:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -8.71,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260113_153",
+          "timestamp": "2026-01-13T14:35:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -8.71,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260113_154",
+          "timestamp": "2026-01-13T16:39:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -8.71,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260114_155",
+          "timestamp": "2026-01-14T09:31:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -32.55,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260114_156",
+          "timestamp": "2026-01-14T14:52:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -32.55,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260114_157",
+          "timestamp": "2026-01-14T11:21:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -32.55,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260114_158",
+          "timestamp": "2026-01-14T17:56:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -32.55,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260115_159",
+          "timestamp": "2026-01-15T17:22:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -11.12,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260115_160",
+          "timestamp": "2026-01-15T14:51:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -11.12,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260115_161",
+          "timestamp": "2026-01-15T17:45:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -11.12,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260115_162",
+          "timestamp": "2026-01-15T11:13:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -11.12,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260115_163",
+          "timestamp": "2026-01-15T13:40:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -11.12,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260116_164",
+          "timestamp": "2026-01-16T20:30:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -41.3,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260116_165",
+          "timestamp": "2026-01-16T20:11:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -41.3,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260116_166",
+          "timestamp": "2026-01-16T18:22:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -41.3,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260116_167",
+          "timestamp": "2026-01-16T14:49:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -41.3,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260117_168",
+          "timestamp": "2026-01-17T09:59:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -40.96,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260117_169",
+          "timestamp": "2026-01-17T19:04:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -40.96,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260117_170",
+          "timestamp": "2026-01-17T11:38:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -40.96,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260117_171",
+          "timestamp": "2026-01-17T13:49:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -40.96,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260118_172",
+          "timestamp": "2026-01-18T20:28:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -39.17,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260118_173",
+          "timestamp": "2026-01-18T20:10:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -39.17,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260118_174",
+          "timestamp": "2026-01-18T19:23:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -39.17,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260118_175",
+          "timestamp": "2026-01-18T20:30:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -39.17,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260118_176",
+          "timestamp": "2026-01-18T16:35:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -39.17,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260119_177",
+          "timestamp": "2026-01-19T09:29:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -91.73,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260119_178",
+          "timestamp": "2026-01-19T17:29:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -91.73,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260119_179",
+          "timestamp": "2026-01-19T16:13:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -91.73,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260120_180",
+          "timestamp": "2026-01-20T11:12:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -45.03,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260120_181",
+          "timestamp": "2026-01-20T10:34:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -45.03,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260120_182",
+          "timestamp": "2026-01-20T17:08:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -45.03,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260120_183",
+          "timestamp": "2026-01-20T17:23:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -45.03,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260121_184",
+          "timestamp": "2026-01-21T12:39:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -20.99,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260121_185",
+          "timestamp": "2026-01-21T09:37:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -20.99,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260121_186",
+          "timestamp": "2026-01-21T10:33:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -20.99,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260121_187",
+          "timestamp": "2026-01-21T19:59:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -20.99,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260121_188",
+          "timestamp": "2026-01-21T14:42:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -20.99,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260122_189",
+          "timestamp": "2026-01-22T20:15:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -83.44,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260122_190",
+          "timestamp": "2026-01-22T20:13:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -83.44,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260123_191",
+          "timestamp": "2026-01-23T18:18:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -54.95,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260123_192",
+          "timestamp": "2026-01-23T12:38:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -54.95,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260123_193",
+          "timestamp": "2026-01-23T13:17:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -54.95,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260124_194",
+          "timestamp": "2026-01-24T14:58:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -169.29,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260125_195",
+          "timestamp": "2026-01-25T18:52:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -39.32,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260125_196",
+          "timestamp": "2026-01-25T20:58:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -39.32,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260125_197",
+          "timestamp": "2026-01-25T14:39:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -39.32,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "salary_2026_1",
+          "timestamp": "2026-01-25T08:00:00Z",
+          "description": "MegaCorp Salary",
+          "amount": 7500.0,
+          "currency": "GBP",
+          "transaction_type": "CREDIT",
+          "transaction_category": "SALARY"
+        },
+        {
+          "transaction_id": "txn_20260126_198",
+          "timestamp": "2026-01-26T13:48:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -27.53,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260126_199",
+          "timestamp": "2026-01-26T17:23:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -27.53,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260126_200",
+          "timestamp": "2026-01-26T16:39:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -27.53,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260126_201",
+          "timestamp": "2026-01-26T14:44:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -27.53,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260126_202",
+          "timestamp": "2026-01-26T17:35:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -27.53,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260127_203",
+          "timestamp": "2026-01-27T11:14:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -2.5,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260127_204",
+          "timestamp": "2026-01-27T09:14:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -2.5,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260128_205",
+          "timestamp": "2026-01-28T13:46:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -228.12,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260129_206",
+          "timestamp": "2026-01-29T13:30:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -50.31,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260129_207",
+          "timestamp": "2026-01-29T14:00:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -50.31,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260129_208",
+          "timestamp": "2026-01-29T15:54:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -50.31,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260130_209",
+          "timestamp": "2026-01-30T12:28:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -134.15,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260131_210",
+          "timestamp": "2026-01-31T19:17:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -104.93,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260131_211",
+          "timestamp": "2026-01-31T15:25:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -104.93,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260201_212",
+          "timestamp": "2026-02-01T10:49:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -34.13,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260201_213",
+          "timestamp": "2026-02-01T15:42:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -34.13,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260201_214",
+          "timestamp": "2026-02-01T16:54:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -34.13,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260202_215",
+          "timestamp": "2026-02-02T14:54:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -126.49,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260202_216",
+          "timestamp": "2026-02-02T12:50:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -126.49,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260202_217",
+          "timestamp": "2026-02-02T19:09:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -126.49,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260202_218",
+          "timestamp": "2026-02-02T11:33:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -126.49,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260202_219",
+          "timestamp": "2026-02-02T20:11:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -126.49,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260203_220",
+          "timestamp": "2026-02-03T14:00:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -75.98,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260204_221",
+          "timestamp": "2026-02-04T15:56:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -56.25,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260204_222",
+          "timestamp": "2026-02-04T19:14:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -56.25,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260205_223",
+          "timestamp": "2026-02-05T20:34:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -19.91,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260205_224",
+          "timestamp": "2026-02-05T09:26:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -19.91,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260205_225",
+          "timestamp": "2026-02-05T15:03:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -19.91,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260206_226",
+          "timestamp": "2026-02-06T16:18:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -51.51,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260206_227",
+          "timestamp": "2026-02-06T15:07:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -51.51,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260207_228",
+          "timestamp": "2026-02-07T10:48:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -43.28,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260207_229",
+          "timestamp": "2026-02-07T11:16:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -43.28,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260207_230",
+          "timestamp": "2026-02-07T10:08:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -43.28,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260207_231",
+          "timestamp": "2026-02-07T19:53:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -43.28,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260208_232",
+          "timestamp": "2026-02-08T20:56:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -176.98,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260209_233",
+          "timestamp": "2026-02-09T10:33:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -67.15,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260209_234",
+          "timestamp": "2026-02-09T11:51:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -67.15,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260209_235",
+          "timestamp": "2026-02-09T12:39:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -67.15,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260210_236",
+          "timestamp": "2026-02-10T11:07:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -130.64,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260211_237",
+          "timestamp": "2026-02-11T18:30:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -51.02,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260211_238",
+          "timestamp": "2026-02-11T19:24:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -51.02,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260211_239",
+          "timestamp": "2026-02-11T14:58:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -51.02,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260212_240",
+          "timestamp": "2026-02-12T19:02:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -30.03,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260212_241",
+          "timestamp": "2026-02-12T14:46:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -30.03,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260212_242",
+          "timestamp": "2026-02-12T16:56:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -30.03,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260212_243",
+          "timestamp": "2026-02-12T14:37:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -30.03,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260213_244",
+          "timestamp": "2026-02-13T14:19:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -23.55,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260213_245",
+          "timestamp": "2026-02-13T09:06:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -23.55,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260213_246",
+          "timestamp": "2026-02-13T10:59:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -23.55,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260213_247",
+          "timestamp": "2026-02-13T17:00:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -23.55,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260213_248",
+          "timestamp": "2026-02-13T17:32:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -23.55,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260214_249",
+          "timestamp": "2026-02-14T18:54:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -571.54,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260214_250",
+          "timestamp": "2026-02-14T11:39:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -571.54,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260215_251",
+          "timestamp": "2026-02-15T12:03:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -1.67,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260215_252",
+          "timestamp": "2026-02-15T18:51:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -1.67,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260215_253",
+          "timestamp": "2026-02-15T10:42:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -1.67,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260216_254",
+          "timestamp": "2026-02-16T10:40:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -157.72,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260217_255",
+          "timestamp": "2026-02-17T10:54:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -31.91,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260217_256",
+          "timestamp": "2026-02-17T12:17:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -31.91,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260217_257",
+          "timestamp": "2026-02-17T11:28:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -31.91,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260217_258",
+          "timestamp": "2026-02-17T18:16:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -31.91,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260218_259",
+          "timestamp": "2026-02-18T20:41:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -14.46,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260218_260",
+          "timestamp": "2026-02-18T14:16:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -14.46,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260218_261",
+          "timestamp": "2026-02-18T18:43:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -14.46,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260219_262",
+          "timestamp": "2026-02-19T10:58:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -64.09,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260219_263",
+          "timestamp": "2026-02-19T20:46:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -64.09,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260219_264",
+          "timestamp": "2026-02-19T15:56:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -64.09,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260220_265",
+          "timestamp": "2026-02-20T20:15:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -61.3,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260220_266",
+          "timestamp": "2026-02-20T15:50:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -61.3,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260221_267",
+          "timestamp": "2026-02-21T19:24:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -238.85,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260222_268",
+          "timestamp": "2026-02-22T18:55:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -2180.21,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260223_269",
+          "timestamp": "2026-02-23T17:23:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -299.6,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260224_270",
+          "timestamp": "2026-02-24T17:16:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -97.06,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260224_271",
+          "timestamp": "2026-02-24T09:43:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -97.06,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260225_272",
+          "timestamp": "2026-02-25T12:44:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -269.36,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "salary_2026_2",
+          "timestamp": "2026-02-25T08:00:00Z",
+          "description": "MegaCorp Salary",
+          "amount": 7500.0,
+          "currency": "GBP",
+          "transaction_type": "CREDIT",
+          "transaction_category": "SALARY"
+        },
+        {
+          "transaction_id": "txn_20260226_273",
+          "timestamp": "2026-02-26T17:46:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -187.7,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260227_274",
+          "timestamp": "2026-02-27T12:38:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -534.45,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260227_275",
+          "timestamp": "2026-02-27T13:29:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -534.45,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260227_276",
+          "timestamp": "2026-02-27T14:47:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -534.45,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260227_277",
+          "timestamp": "2026-02-27T10:33:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -534.45,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260228_278",
+          "timestamp": "2026-02-28T17:44:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -14.79,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260228_279",
+          "timestamp": "2026-02-28T17:15:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -14.79,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260301_280",
+          "timestamp": "2026-03-01T15:57:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -44.25,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260301_281",
+          "timestamp": "2026-03-01T17:51:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -44.25,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260301_282",
+          "timestamp": "2026-03-01T09:55:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -44.25,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260302_283",
+          "timestamp": "2026-03-02T14:08:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -194.13,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260303_284",
+          "timestamp": "2026-03-03T09:37:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -38.54,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260303_285",
+          "timestamp": "2026-03-03T12:51:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -38.54,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260303_286",
+          "timestamp": "2026-03-03T17:20:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -38.54,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260303_287",
+          "timestamp": "2026-03-03T12:23:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -38.54,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260303_288",
+          "timestamp": "2026-03-03T19:02:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -38.54,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260304_289",
+          "timestamp": "2026-03-04T11:56:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -42.49,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260304_290",
+          "timestamp": "2026-03-04T14:09:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -42.49,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260304_291",
+          "timestamp": "2026-03-04T17:23:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -42.49,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260304_292",
+          "timestamp": "2026-03-04T14:49:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -42.49,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260304_293",
+          "timestamp": "2026-03-04T20:24:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -42.49,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260305_294",
+          "timestamp": "2026-03-05T12:15:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -43.33,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260305_295",
+          "timestamp": "2026-03-05T09:21:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -43.33,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260305_296",
+          "timestamp": "2026-03-05T16:02:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -43.33,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260305_297",
+          "timestamp": "2026-03-05T17:00:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -43.33,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260306_298",
+          "timestamp": "2026-03-06T16:34:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -32.82,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260306_299",
+          "timestamp": "2026-03-06T11:05:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -32.82,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260306_300",
+          "timestamp": "2026-03-06T14:04:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -32.82,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260306_301",
+          "timestamp": "2026-03-06T10:22:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -32.82,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260307_302",
+          "timestamp": "2026-03-07T20:39:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -25.67,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260307_303",
+          "timestamp": "2026-03-07T09:10:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -25.67,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260307_304",
+          "timestamp": "2026-03-07T18:39:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -25.67,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260307_305",
+          "timestamp": "2026-03-07T10:04:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -25.67,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        },
+        {
+          "transaction_id": "txn_20260307_306",
+          "timestamp": "2026-03-07T20:55:00Z",
+          "description": "Correlated Synthetic Spend",
+          "amount": -25.67,
+          "currency": "GBP",
+          "transaction_type": "DEBIT",
+          "transaction_category": "SYNTHETIC"
+        }
+      ]
+    }
+  ]
+}

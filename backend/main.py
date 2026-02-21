@@ -434,3 +434,14 @@ async def get_all_transactions():
         "grand_total_transactions": sum(u["total_transactions"] for u in users_data),
     }
 
+
+@app.get("/api/calendar", tags=["calendar"])
+async def get_calendar_events():
+    """
+    Get saved daily aggregated calendar events.
+    """
+    filepath = DATA_DIR / "calendar_events.json"
+    if not filepath.exists():
+        return {"sync_time": None, "daily_calendar": []}
+    with open(filepath) as f:
+        return json.load(f)

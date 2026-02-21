@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PROPHIT // TERMINAL</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inconsolata:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg: #000000;
+      --surface: #0a0a0a;
+      --border: #1a1a1a;
+      --border-glow: rgba(0, 153, 255, 0.15);
+      --text: #e0e0e0;
+      --text-dim: #777777;
+      --accent: #fb8b1e;
+      --accent-dim: rgba(251, 139, 30, 0.2);
+      --green: #4caf50;
+      --red: #ff5252;
+      --cyan: #00e5ff;
+      --radius: 4px;
+      --font-mono: 'Inconsolata', monospace;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-mono);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    /* --- Header & Nav --- */
+    .top-bar {
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(180deg, #050505 0%, #000000 100%);
+    }
+
+    .logo-area {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    h1 span {
+      color: var(--accent);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 20px;
+    }
+
+    .nav-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover,
+    .nav-links a.active {
+      color: var(--cyan);
+    }
+
+    /* --- Filter Bar --- */
+    .filter-bar {
+      padding: 16px 24px;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .filter-label {
+      color: var(--accent);
+      text-transform: uppercase;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 1px;
+    }
+
+    select,
+    button {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      padding: 6px 12px;
+      background: #000;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.2s;
+    }
+
+    select:hover,
+    select:focus {
+      border-color: var(--accent);
+      outline: none;
+    }
+
+    button.btn-outline {
+      border-color: var(--cyan);
+      color: var(--cyan);
+    }
+
+    button.btn-outline:hover {
+      background: rgba(0, 229, 255, 0.1);
+    }
+
+    button.btn-primary {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+      font-weight: 700;
+    }
+
+    button.btn-primary:hover {
+      background: #e67e1a;
+      border-color: #e67e1a;
+    }
+
+    /* --- Main Layout --- */
+    .container {
+      padding: 24px;
+    }
+
+    /* --- Stats Grid --- */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: 0 0 10px var(--border-glow);
+      border-top: 2px solid var(--border);
+      transition: border-top-color 0.2s;
+    }
+
+    .stat-card:hover {
+      border-top-color: var(--cyan);
+    }
+
+    .stat-card .label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+
+    .stat-card .value {
+      font-size: 24px;
+      font-weight: 500;
+      letter-spacing: 1px;
+    }
+
+    .stat-card .detail {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .val-up {
+      color: var(--green);
+    }
+
+    .val-down {
+      color: var(--red);
+    }
+
+    .val-accent {
+      color: var(--accent);
+    }
+
+    .val-cyan {
+      color: var(--cyan);
+    }
+
+    /* --- Insight Bar --- */
+    .terminal-insight {
+      background: rgba(251, 139, 30, 0.05);
+      border: 1px solid var(--accent-dim);
+      border-left: 3px solid var(--accent);
+      padding: 12px 16px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 13px;
+    }
+
+    .terminal-insight blink {
+      animation: blinker 1s linear infinite;
+      color: var(--accent);
+      font-weight: bold;
+    }
+
+    @keyframes blinker {
+      50% {
+        opacity: 0;
+      }
+    }
+
+    /* --- Charts Grid --- */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .chart-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+    }
+
+    .chart-box.wide {
+      grid-column: 1 / -1;
+    }
+
+    .chart-box .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px dotted var(--border);
+    }
+
+    .chart-box h3 {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    .chart-box .badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      background: var(--border);
+      color: var(--cyan);
+      border-radius: 2px;
+    }
+
+    .chart-container {
+      position: relative;
+      width: 100%;
+    }
+
+    .chart-container canvas {
+      width: 100% !important;
+    }
+
+    /* --- Loading --- */
+    .loading-overlay {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 50vh;
+      flex-direction: column;
+      gap: 12px;
+      font-size: 14px;
+      color: var(--cyan);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 2px solid var(--bg);
+      border-top-color: var(--cyan);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="top-bar">
+    <div class="logo-area">
+      <h1>PROPHIT<span>_</span></h1>
+      <span style="color:var(--text-dim); font-size:12px;">v0.3.0 // SECURE CONNECTION</span>
+    </div>
+    <div class="nav-links">
+      <a href="#" class="active">Txn Analysis</a>
+      <a href="#">Weather Correlogram</a>
+      <a href="#">Raw Data</a>
+      <a href="#">Settings</a>
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <span class="filter-label">Target Entity:</span>
+    <select id="userSelect"></select>
+    <button class="btn-primary" onclick="loadData()">Execute Query</button>
+    <div style="flex-grow:1"></div>
+    <button class="btn-outline">Export CSV</button>
+  </div>
+
+  <div class="container" id="app">
+    <div class="loading-overlay">
+      <div class="spinner"></div>
+      <div>INITIALIZING DATA SYNC...</div>
+    </div>
+  </div>
+
+  <script>
+    const API = 'http://localhost:3000';
+
+    /* ---------- state ---------- */
+    let allUsersData = null;
+    let weatherCache = {};
+    let calendarCache = {};
+    let holidaysCache = {};
+    let charts = {};
+
+    /* ---------- init ---------- */
+    async function init() {
+      try {
+        const res = await fetch(`${API}/api/transactions`);
+        allUsersData = await res.json();
+
+        // Populate user selector
+        const sel = document.getElementById('userSelect');
+        sel.innerHTML = '<option value="__all__">All Users</option>';
+        allUsersData.users.forEach(u => {
+          sel.innerHTML += `<option value="${u.user}">${u.user} (${u.total_transactions} txns)</option>`;
+        });
+        sel.onchange = () => loadData();
+
+        // Load weather, calendar, & holidays
+        await Promise.all([loadWeather(), loadCalendar(), loadHolidays()]);
+        loadData();
+      } catch (e) {
+        document.getElementById('app').innerHTML =
+          `<div class="loading"><div style="color:var(--red)">⚠ Cannot reach API at ${API}<br>Make sure the backend is running on port 3000</div></div>`;
+      }
+    }
+
+    async function loadWeather() {
+      // London coords, covering Nov 2025 – Mar 2026 (max 14 days ahead of present)
+      const url = 'https://api.open-meteo.com/v1/forecast?' +
+        'latitude=51.5074&longitude=-0.1278' +
+        '&start_date=2025-11-25&end_date=2026-03-05' +
+        '&daily=temperature_2m_max,temperature_2m_min,temperature_2m_mean,precipitation_sum,rain_sum,windspeed_10m_max,weathercode' +
+        '&timezone=Europe/London';
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        const days = data.daily;
+        for (let i = 0; i < days.time.length; i++) {
+          weatherCache[days.time[i]] = {
+            date: days.time[i],
+            temp_max: days.temperature_2m_max[i],
+            temp_min: days.temperature_2m_min[i],
+            temp_mean: days.temperature_2m_mean[i],
+            precip: days.precipitation_sum[i],
+            rain: days.rain_sum[i],
+            wind: days.windspeed_10m_max[i],
+            code: days.weathercode[i],
+          };
+        }
+      } catch (e) {
+        console.warn('Weather API failed:', e);
+      }
+    }
+
+    async function loadCalendar() {
+      try {
+        const res = await fetch(`${API}/api/calendar`);
+        const data = await res.json();
+        if (data && data.daily_calendar) {
+          data.daily_calendar.forEach(day => {
+            calendarCache[day.date] = day.busy_hours;
+          });
+        }
+      } catch (e) {
+        console.warn('Calendar API failed:', e);
+      }
+    }
+
+    async function loadHolidays() {
+      try {
+        const url = 'https://openholidaysapi.org/PublicHolidays?countryIsoCode=IE&languageIsoCode=EN&validFrom=2025-01-01&validTo=2026-12-31';
+        const res = await fetch(url);
+        const data = await res.json();
+        data.forEach(h => {
+          holidaysCache[h.startDate] = h.name[0]?.text || 'Holiday';
+        });
+      } catch (e) {
+        console.warn('Holidays API failed:', e);
+      }
+    }
+
+    /* ---------- data processing ---------- */
+    function getTransactions(userId) {
+      if (!allUsersData) return [];
+      let users = allUsersData.users;
+      if (userId && userId !== '__all__') {
+        users = users.filter(u => u.user === userId);
+      }
+      const txns = [];
+      users.forEach(u => u.accounts.forEach(a => {
+        a.transactions.forEach(t => {
+          txns.push({ ...t, account: a.display_name, user: u.user });
+        });
+      }));
+      return txns;
+    }
+
+    function aggregateByDate(txns) {
+      const map = {};
+      txns.forEach(t => {
+        const d = t.timestamp.slice(0, 10);
+        if (!map[d]) map[d] = { date: d, debits: 0, credits: 0, count: 0 };
+        if (t.amount < 0) map[d].debits += Math.abs(t.amount);
+        else map[d].credits += t.amount;
+        map[d].count++;
+      });
+      return Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
+    }
+
+    function weatherDesc(code) {
+      const descriptions = {
+        0: '☀️ Clear', 1: '🌤 Mainly clear', 2: '⛅ Partly cloudy', 3: '☁️ Overcast',
+        45: '🌫 Fog', 48: '🌫 Rime fog',
+        51: '🌦 Light drizzle', 53: '🌧 Drizzle', 55: '🌧 Heavy drizzle',
+        61: '🌧 Light rain', 63: '🌧 Rain', 65: '🌧️ Heavy rain',
+        66: '🌧 Freezing rain', 67: '🌧 Heavy freezing rain',
+        71: '🌨 Light snow', 73: '🌨 Snow', 75: '🌨 Heavy snow',
+        77: '🌨 Snow grains', 80: '🌦 Light showers', 81: '🌧 Showers', 82: '🌧 Heavy showers',
+        85: '🌨 Snow showers', 86: '🌨 Heavy snow showers',
+        95: '⛈ Thunderstorm', 96: '⛈ Hail storm', 99: '⛈ Heavy hail storm',
+      };
+      return descriptions[code] || `Code ${code}`;
+    }
+
+    /* ---------- render ---------- */
+    function loadData() {
+      const userId = document.getElementById('userSelect').value;
+      const txns = getTransactions(userId);
+      const daily = aggregateByDate(txns);
+
+      const totalSpent = txns.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+      const totalIncome = txns.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+      const avgTemp = Object.values(weatherCache).length
+        ? (Object.values(weatherCache).reduce((s, w) => s + (w.temp_mean || 0), 0) / Object.values(weatherCache).length).toFixed(1)
+        : 'N/A';
+      const rainyDays = Object.values(weatherCache).filter(w => w.precip > 1).length;
+
+      // Correlation
+      const corrData = daily.map(d => ({
+        spending: d.debits,
+        temp: weatherCache[d.date]?.temp_mean ?? null,
+        precip: weatherCache[d.date]?.precip ?? null,
+        busy: calendarCache[d.date] ?? 0,
+        is_holiday: holidaysCache[d.date] ? 1 : 0,
+      }));
+
+      const corrDataTemp = corrData.filter(d => d.temp !== null);
+      const corrTemp = pearsonCorrelation(corrDataTemp.map(d => d.temp), corrDataTemp.map(d => d.spending));
+      const corrRain = pearsonCorrelation(corrDataTemp.map(d => d.precip), corrDataTemp.map(d => d.spending));
+      const corrBusy = pearsonCorrelation(corrData.map(d => d.busy), corrData.map(d => d.spending));
+      const corrHol = pearsonCorrelation(corrData.map(d => d.is_holiday), corrData.map(d => d.spending));
+
+      const holidayDays = corrData.filter(d => d.is_holiday).length;
+
+      let insightText = '';
+      if (Math.abs(corrHol) > 0.3) {
+        insightText += corrHol > 0
+          ? `[ANALYSIS] HOLIDAYS CORRELATE WITH HIGH SPENDING (r=${corrHol.toFixed(3)}). `
+          : `[ANALYSIS] HOLIDAYS CORRELATE WITH LOW SPENDING (r=${corrHol.toFixed(3)}). `;
+      }
+      if (Math.abs(corrBusy) > 0.3) {
+        insightText += corrBusy > 0
+          ? `[ANALYSIS] HIGHER SPENDING ON BUSY DAYS (r=${corrBusy.toFixed(3)}). `
+          : `[ANALYSIS] HIGHER SPENDING ON FREE DAYS (r=${corrBusy.toFixed(3)}). `;
+      }
+      if (Math.abs(corrTemp) > 0.3) {
+        insightText += corrTemp > 0
+          ? `[ANALYSIS] SPENDING CORRELATES POSITIVELY WITH TEMPERATURE (r=${corrTemp.toFixed(3)}). `
+          : `[ANALYSIS] SPENDING CORRELATES NEGATIVELY WITH TEMPERATURE (r=${corrTemp.toFixed(3)}). `;
+      }
+      if (Math.abs(corrRain) > 0.2) {
+        insightText += corrRain > 0
+          ? `[ANALYSIS] RAIN CORRELATES WITH HIGHER SPENDING (r=${corrRain.toFixed(3)}).`
+          : `[ANALYSIS] RAIN CORRELATES WITH LOWER SPENDING (r=${corrRain.toFixed(3)}).`;
+      }
+      if (!insightText) {
+        insightText = `[ANALYSIS] TEMP: ${corrTemp.toFixed(3)} | RAIN: ${corrRain.toFixed(3)} | SCHEDULE: ${corrBusy.toFixed(3)} | HOLIDAYS: ${corrHol.toFixed(3)} // NO DOMINANT CORRELATION DETECTED.`;
+      }
+
+      // Build DOM
+      document.getElementById('app').innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">TOTAL OUTFLOW</div>
+        <div class="value val-down">£${totalSpent.toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+        <div class="detail"><span>VOL: ${txns.filter(t => t.amount < 0).length} TXNS</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="label">MEAN TEMP (LON)</div>
+        <div class="value val-cyan">${avgTemp}°C</div>
+        <div class="detail"><span>PERIOD: NOV-FEB</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="label">TEMP // SPEND (R)</div>
+        <div class="value" style="color: ${Math.abs(corrTemp) > 0.3 ? 'var(--cyan)' : 'var(--text)'}">${corrTemp.toFixed(3)}</div>
+        <div class="detail"><span>PEARSON COEFF</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="label">RAIN // SPEND (R)</div>
+        <div class="value" style="color: ${Math.abs(corrRain) > 0.3 ? 'var(--cyan)' : 'var(--text)'}">${corrRain.toFixed(3)}</div>
+        <div class="detail"><span>PEARSON COEFF</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="label">BUSY HOURS // SPEND (R)</div>
+        <div class="value" style="color: ${Math.abs(corrBusy) > 0.3 ? 'var(--cyan)' : 'var(--text)'}">${corrBusy.toFixed(3)}</div>
+        <div class="detail"><span>PEARSON COEFF</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="label">HOLIDAY // SPEND (R)</div>
+        <div class="value" style="color: ${Math.abs(corrHol) > 0.3 ? 'var(--cyan)' : 'var(--text)'}">${corrHol.toFixed(3)}</div>
+        <div class="detail"><span>${holidayDays} HOLIDAYS</span></div>
+      </div>
+    </div>
+
+    <div class="terminal-insight">
+      <blink>></blink>
+      <div class="text">${insightText}</div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-box wide">
+        <div class="chart-header">
+          <h3>DAILY SPENDING VS SCHEDULE TICKERS</h3>
+          <span class="badge">OVERLAY</span>
+        </div>
+        <div class="chart-container"><canvas id="chartSpendCalendar"></canvas></div>
+      </div>
+      <div class="chart-box wide">
+        <div class="chart-header">
+          <h3>DAILY SPENDING VS TEMPERATURE</h3>
+          <span class="badge">OVERLAY</span>
+        </div>
+        <div class="chart-container"><canvas id="chartSpendTemp"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-header">
+          <h3>SPENDING VS RAINFALL</h3>
+          <span class="badge">OVERLAY</span>
+        </div>
+        <div class="chart-container"><canvas id="chartSpendRain"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-header">
+          <h3>TEMP DISTRIBUTION</h3>
+          <span class="badge">SCATTER</span>
+        </div>
+        <div class="chart-container"><canvas id="chartScatter"></canvas></div>
+      </div>
+      <div class="chart-box wide">
+        <div class="chart-header">
+          <h3>INFLOW VS OUTFLOW (TIME SERIES)</h3>
+          <span class="badge">AREA</span>
+        </div>
+        <div class="chart-container"><canvas id="chartIncomeSpend"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-header">
+          <h3>SPEND BY WEATHER CLUSTER</h3>
+          <span class="badge">BAR</span>
+        </div>
+        <div class="chart-container"><canvas id="chartByWeather"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-header">
+          <h3>WEEKDAY DISTRIBUTION</h3>
+          <span class="badge">BAR</span>
+        </div>
+        <div class="chart-container"><canvas id="chartDOW"></canvas></div>
+      </div>
+    </div>
+  `;
+
+      renderCharts(daily, txns, corrData);
+    }
+
+    /* ---------- charts ---------- */
+    function destroyCharts() {
+      Object.values(charts).forEach(c => c.destroy());
+      charts = {};
+    }
+
+    function renderCharts(daily, txns, corrData) {
+      destroyCharts();
+
+      Chart.defaults.color = '#777777';
+      Chart.defaults.borderColor = '#1a1a1a';
+      Chart.defaults.font.family = "'Inconsolata', monospace";
+
+      // Colors
+      const C_ACCENT = '#fb8b1e';
+      const C_ACCENT_BG = 'rgba(251, 139, 30, 0.2)';
+      const C_CYAN = '#00e5ff';
+      const C_CYAN_BG = 'rgba(0, 229, 255, 0.1)';
+      const C_RED = '#ff5252';
+      const C_RED_BG = 'rgba(255, 82, 82, 0.2)';
+      const C_GREEN = '#4caf50';
+      const C_GREEN_BG = 'rgba(76, 175, 80, 0.2)';
+
+      // 1. Spending vs Calendar Schedule (dual axis)
+      const labels = daily.map(d => d.date);
+      const busy_hours = daily.map(d => calendarCache[d.date] ?? 0);
+      charts.spendCalendar = new Chart(document.getElementById('chartSpendCalendar'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'OUTFLOW (£)',
+              data: daily.map(d => d.debits),
+              backgroundColor: daily.map(d => holidaysCache[d.date] ? C_CYAN_BG : C_RED_BG),
+              borderColor: daily.map(d => holidaysCache[d.date] ? C_CYAN : C_RED),
+              borderWidth: 1,
+              yAxisID: 'y',
+              order: 2,
+            },
+            {
+              label: 'BUSY HOURS',
+              data: busy_hours,
+              type: 'line',
+              borderColor: C_ACCENT,
+              backgroundColor: C_ACCENT_BG,
+              pointRadius: 0,
+              borderWidth: 2,
+              fill: true,
+              tension: 0,
+              yAxisID: 'y1',
+              order: 1,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            y: { position: 'left', title: { display: true, text: '£' }, grid: { color: '#1a1a1a' } },
+            y1: { position: 'right', title: { display: true, text: 'HOURS' }, grid: { drawOnChartArea: false }, min: 0 },
+            x: { ticks: { maxTicksLimit: 15 }, grid: { display: false } }
+          },
+          plugins: { legend: { position: 'top', labels: { boxWidth: 12 } } }
+        }
+      });
+
+      // 1.b Spending vs Temperature (dual axis)
+      const temps = daily.map(d => weatherCache[d.date]?.temp_mean ?? null);
+      charts.spendTemp = new Chart(document.getElementById('chartSpendTemp'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'OUTFLOW (£)',
+              data: daily.map(d => d.debits),
+              backgroundColor: C_RED_BG,
+              borderColor: C_RED,
+              borderWidth: 1,
+              yAxisID: 'y',
+              order: 2,
+            },
+            {
+              label: 'MEAN TEMP (°C)',
+              data: temps,
+              type: 'line',
+              borderColor: C_CYAN,
+              backgroundColor: C_CYAN_BG,
+              pointRadius: 0,
+              borderWidth: 2,
+              fill: true,
+              tension: 0,
+              yAxisID: 'y1',
+              order: 1,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            y: { position: 'left', title: { display: true, text: '£' }, grid: { color: '#1a1a1a' } },
+            y1: { position: 'right', title: { display: true, text: '°C' }, grid: { drawOnChartArea: false } },
+            x: { ticks: { maxTicksLimit: 15 }, grid: { display: false } }
+          },
+          plugins: { legend: { position: 'top', labels: { boxWidth: 12 } } }
+        }
+      });
+
+      // 2. Spending vs Rainfall
+      const rains = daily.map(d => weatherCache[d.date]?.precip ?? 0);
+      charts.spendRain = new Chart(document.getElementById('chartSpendRain'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'PRECIP (mm)',
+              data: rains,
+              backgroundColor: C_CYAN_BG,
+              borderColor: C_CYAN,
+              borderWidth: 1,
+              yAxisID: 'y1',
+              order: 2,
+            },
+            {
+              label: 'OUTFLOW (£)',
+              data: daily.map(d => d.debits),
+              type: 'line',
+              borderColor: C_RED,
+              pointRadius: 0,
+              borderWidth: 2,
+              tension: 0,
+              yAxisID: 'y',
+              order: 1,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: { position: 'left', title: { display: true, text: '£' }, grid: { color: '#1a1a1a' } },
+            y1: { position: 'right', title: { display: true, text: 'mm' }, grid: { drawOnChartArea: false } },
+            x: { ticks: { maxTicksLimit: 12 }, grid: { display: false } }
+          },
+          plugins: { legend: { position: 'top', labels: { boxWidth: 12 } } }
+        }
+      });
+
+      // 3. Scatter: temp vs spending
+      charts.scatter = new Chart(document.getElementById('chartScatter'), {
+        type: 'scatter',
+        data: {
+          datasets: [{
+            label: 'TEMP VS SPEND',
+            data: corrData.map(d => ({ x: d.temp, y: d.spending })),
+            backgroundColor: C_ACCENT_BG,
+            borderColor: C_ACCENT,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: { title: { display: true, text: '°C' }, grid: { color: '#1a1a1a' } },
+            y: { title: { display: true, text: '£' }, grid: { color: '#1a1a1a' } },
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+
+      // 4. Income vs Spending over time
+      charts.incomeSpend = new Chart(document.getElementById('chartIncomeSpend'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'INFLOW (£)',
+              data: daily.map(d => d.credits),
+              borderColor: C_GREEN,
+              backgroundColor: C_GREEN_BG,
+              fill: true, tension: 0, pointRadius: 0, borderWidth: 2,
+            },
+            {
+              label: 'OUTFLOW (£)',
+              data: daily.map(d => d.debits),
+              borderColor: C_RED,
+              backgroundColor: C_RED_BG,
+              fill: true, tension: 0, pointRadius: 0, borderWidth: 2,
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: { ticks: { maxTicksLimit: 15 }, grid: { display: false } },
+            y: { title: { display: true, text: '£' }, grid: { color: '#1a1a1a' } }
+          },
+          plugins: { legend: { position: 'top', labels: { boxWidth: 12 } } }
+        }
+      });
+
+      // 5. Spending by weather condition
+      const byWeather = {};
+      daily.forEach(d => {
+        const w = weatherCache[d.date];
+        if (!w) return;
+        const desc = weatherDesc(w.code).toUpperCase();
+        if (!byWeather[desc]) byWeather[desc] = { total: 0, days: 0 };
+        byWeather[desc].total += d.debits;
+        byWeather[desc].days++;
+      });
+      const weatherLabels = Object.keys(byWeather).sort((a, b) => (byWeather[b].total / byWeather[b].days) - (byWeather[a].total / byWeather[a].days));
+      const avgSpendByWeather = weatherLabels.map(l => byWeather[l].total / byWeather[l].days);
+      const weatherColors = weatherLabels.map((_, i) => i === 0 ? C_ACCENT : C_CYAN);
+      charts.byWeather = new Chart(document.getElementById('chartByWeather'), {
+        type: 'bar',
+        data: {
+          labels: weatherLabels,
+          datasets: [{
+            label: 'AVG OUTFLOW (£)',
+            data: avgSpendByWeather,
+            backgroundColor: weatherColors,
+            borderColor: '#000',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          indexAxis: 'y',
+          scales: {
+            x: { title: { display: true, text: '£ / DAY' }, grid: { color: '#1a1a1a' } },
+            y: { grid: { display: false } }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+
+      // 6. Day of week spending
+      const dowNames = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+      const dowTotals = new Array(7).fill(0);
+      const dowCounts = new Array(7).fill(0);
+      daily.forEach(d => {
+        const dow = new Date(d.date).getDay();
+        dowTotals[dow] += d.debits;
+        dowCounts[dow]++;
+      });
+      const dowAvg = dowTotals.map((t, i) => dowCounts[i] ? t / dowCounts[i] : 0);
+      charts.dow = new Chart(document.getElementById('chartDOW'), {
+        type: 'bar',
+        data: {
+          labels: dowNames,
+          datasets: [{
+            label: 'AVG OUTFLOW (£)',
+            data: dowAvg,
+            backgroundColor: dowNames.map((_, i) =>
+              (i === 0 || i === 6) ? C_ACCENT_BG : C_CYAN_BG
+            ),
+            borderColor: dowNames.map((_, i) =>
+              (i === 0 || i === 6) ? C_ACCENT : C_CYAN
+            ),
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: { title: { display: true, text: '£' }, grid: { color: '#1a1a1a' } },
+            x: { grid: { display: false } }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    /* ---------- statistics ---------- */
+    function pearsonCorrelation(x, y) {
+      const n = x.length;
+      if (n < 3) return 0;
+      const mx = x.reduce((s, v) => s + v, 0) / n;
+      const my = y.reduce((s, v) => s + v, 0) / n;
+      let num = 0, dx = 0, dy = 0;
+      for (let i = 0; i < n; i++) {
+        const a = x[i] - mx, b = y[i] - my;
+        num += a * b;
+        dx += a * a;
+        dy += b * b;
+      }
+      const denom = Math.sqrt(dx * dy);
+      return denom === 0 ? 0 : num / denom;
+    }
+
+    init();
+  </script>
+</body>
+
+</html>
