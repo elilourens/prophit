@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Dimensions, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../components/theme';
 import { usePro } from '../../contexts/ProContext';
 import { LockedFeatureModal, ProBadge } from '../../components/LockedFeatureModal';
@@ -100,19 +101,19 @@ const PredictionComparison: React.FC<PredictionComparisonProps> = ({
       <View style={styles.comparisonRow}>
         <View style={styles.comparisonColumn}>
           <Text style={styles.comparisonLabel}>PREDICTED</Text>
-          <Text style={styles.comparisonPredicted}>{'\u20AC'}{predicted}</Text>
+          <Text style={styles.comparisonPredicted}>€{predicted}</Text>
         </View>
         <Text style={styles.vsText}>vs</Text>
         <View style={styles.comparisonColumn}>
           <Text style={styles.comparisonLabel}>ACTUAL</Text>
           <Text style={[styles.comparisonActual, isOver && styles.overBudget]}>
-            {'\u20AC'}{actual}
+            €{actual}
           </Text>
         </View>
       </View>
       <View style={[styles.diffContainer, isOver ? styles.diffOver : styles.diffUnder]}>
         <Text style={[styles.diffText, isOver ? styles.diffTextOver : styles.diffTextUnder]}>
-          {isOver ? '+' : ''}{'\u20AC'}{Math.abs(difference)} ({isOver ? '+' : ''}{percentDiff}%)
+          {isOver ? '+' : ''}€{Math.abs(difference)} ({isOver ? '+' : ''}{percentDiff}%)
         </Text>
         <Text style={styles.diffLabel}>
           {isOver ? 'Over predicted spend' : 'Under predicted spend'}
@@ -176,18 +177,14 @@ export default function ProfileScreen() {
   const aiInsight =
     'Your spending was 6% higher than predicted. Rain on Thursday led to 2 unexpected Uber rides.';
 
-  // Show locked modal if not Pro
-  useEffect(() => {
-    if (!isPro) {
-      const timer = setTimeout(() => setShowLockedModal(true), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [isPro]);
+  const handleLockedPress = () => {
+    setShowLockedModal(true);
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <LockedFeatureModal
-        visible={showLockedModal && !isPro}
+        visible={showLockedModal}
         onClose={() => setShowLockedModal(false)}
         featureName="Weekly Recap"
         featureDescription="Get detailed insights on your prediction accuracy and spending patterns every week."
@@ -207,28 +204,53 @@ export default function ProfileScreen() {
           <Text style={styles.subtitle}>Feb 14 - Feb 21, 2026</Text>
         </View>
 
-        {/* AI Accuracy Score */}
-        <View style={styles.accuracySection}>
-          <AccuracyRing percentage={accuracyPercentage} />
-        </View>
+        {/* Locked Overlay for non-Pro users */}
+        {!isPro ? (
+          <TouchableOpacity style={styles.lockedContainer} onPress={handleLockedPress} activeOpacity={0.9}>
+            <View style={styles.lockedOverlay}>
+              <View style={styles.lockedContent}>
+                <View style={styles.lockedIconContainer}>
+                  <Ionicons name="lock-closed" size={32} color={theme.colors.white} />
+                </View>
+                <Text style={styles.lockedTitle}>Unlock Weekly Recap</Text>
+                <Text style={styles.lockedText}>See how accurate your predictions were and get AI insights</Text>
+                <View style={styles.unlockButton}>
+                  <Text style={styles.unlockButtonText}>Upgrade to Pro</Text>
+                </View>
+              </View>
+            </View>
 
-        {/* Predicted vs Actual */}
-        <PredictionComparison predicted={predictedSpend} actual={actualSpend} />
+            {/* Blurred Preview */}
+            <View style={styles.blurredPreview}>
+              <AccuracyRing percentage={accuracyPercentage} />
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <>
+            {/* AI Accuracy Score */}
+            <View style={styles.accuracySection}>
+              <AccuracyRing percentage={accuracyPercentage} />
+            </View>
 
-        {/* Weekly Highlights */}
-        <View style={styles.highlightsSection}>
-          <Text style={styles.sectionTitle}>Weekly Highlights</Text>
-          {highlights.map((highlight, index) => (
-            <HighlightItem
-              key={index}
-              text={highlight.text}
-              isPositive={highlight.isPositive}
-            />
-          ))}
-        </View>
+            {/* Predicted vs Actual */}
+            <PredictionComparison predicted={predictedSpend} actual={actualSpend} />
 
-        {/* AI Insight */}
-        <InsightCard insight={aiInsight} />
+            {/* Weekly Highlights */}
+            <View style={styles.highlightsSection}>
+              <Text style={styles.sectionTitle}>Weekly Highlights</Text>
+              {highlights.map((highlight, index) => (
+                <HighlightItem
+                  key={index}
+                  text={highlight.text}
+                  isPositive={highlight.isPositive}
+                />
+              ))}
+            </View>
+
+            {/* AI Insight */}
+            <InsightCard insight={aiInsight} />
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -266,6 +288,65 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: theme.colors.textSecondary,
+  },
+  // Locked State
+  lockedContainer: {
+    position: 'relative',
+    minHeight: 400,
+  },
+  lockedOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(17, 34, 49, 0.9)',
+    zIndex: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: theme.borderRadius.lg,
+  },
+  lockedContent: {
+    alignItems: 'center',
+    padding: theme.spacing.xl,
+  },
+  lockedIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: theme.colors.hotCoral,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  lockedTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.white,
+    marginBottom: theme.spacing.sm,
+  },
+  lockedText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
+    marginBottom: theme.spacing.lg,
+    lineHeight: 20,
+  },
+  unlockButton: {
+    backgroundColor: theme.colors.hotCoral,
+    paddingHorizontal: theme.spacing.xl,
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+  },
+  unlockButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.white,
+  },
+  blurredPreview: {
+    opacity: 0.2,
+    alignItems: 'center',
+    paddingTop: theme.spacing.xl,
   },
   // Accuracy Ring Styles
   accuracySection: {

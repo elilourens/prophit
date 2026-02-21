@@ -351,6 +351,10 @@ async def get_user_transactions(
     user: str,
     account_type: Optional[str] = Query(None, description="Filter by account type (e.g. TRANSACTION, SAVINGS)"),
     txn_type: Optional[str] = Query(None, description="Filter by transaction type (DEBIT or CREDIT)"),
+    from_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    to_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    min_temp: Optional[float] = Query(None, description="Minimum mean temperature (Celsius)"),
+    max_temp: Optional[float] = Query(None, description="Maximum mean temperature (Celsius)"),
 ):
     """
     Get saved transaction history for a specific user.
@@ -373,6 +377,79 @@ async def get_user_transactions(
         # Filter by transaction type
         if txn_type:
             transactions = [t for t in transactions if t.get("transaction_type", "").upper() == txn_type.upper()]
+            
+        # Filter by date range
+        if from_date or to_date:
+            filtered_by_date = []
+            start_dt = datetime.fromisoformat(from_date).date() if from_date else datetime.min.date()
+            end_dt = datetime.fromisoformat(to_date).date() if to_date else datetime.max.date()
+            for t in transactions:
+                ts_str = t.get("timestamp", "").replace("Z", "+00:00")
+                if ts_str:
+                    try:
+                        txn_date = datetime.fromisoformat(ts_str).date()
+                        if start_dt <= txn_date <= end_dt:
+                            filtered_by_date.append(t)
+                    except ValueError:
+                        pass
+            transactions = filtered_by_date
+            
+        # Filter by temperature
+        if min_temp is not None or max_temp is not None:
+            # We need to fetch weather for the transaction dates
+            # To avoid spamming the API, we find the min/max dates in the remaining transactions
+            if not transactions:
+                break
+                
+            dates = []
+            for t in transactions:
+                ts_str = t.get("timestamp", "").replace("Z", "+00:00")
+                if ts_str:
+                    try:
+                        dates.append(datetime.fromisoformat(ts_str).date())
+                    except ValueError:
+                        pass
+                        
+            if dates:
+                w_start = min(dates).isoformat()
+                w_end = max(dates).isoformat()
+                
+                weather_url = (
+                    "https://api.open-meteo.com/v1/forecast?"
+                    "latitude=51.5074&longitude=-0.1278"
+                    f"&start_date={w_start}&end_date={w_end}"
+                    "&daily=temperature_2m_mean"
+                    "&timezone=Europe/London"
+                )
+                
+                try:
+                    async with httpx.AsyncClient() as client:
+                        w_resp = await client.get(weather_url)
+                        w_data = w_resp.json()
+                        w_map = {
+                            d: w_data["daily"]["temperature_2m_mean"][i]
+                            for i, d in enumerate(w_data["daily"]["time"])
+                        }
+                except Exception as e:
+                    logger.error("Failed to fetch weather for filtering: %s", e)
+                    w_map = {}
+                    
+                filtered_by_temp = []
+                for t in transactions:
+                    ts_str = t.get("timestamp", "").replace("Z", "+00:00")
+                    if ts_str:
+                        try:
+                            txn_date = datetime.fromisoformat(ts_str).date().isoformat()
+                            temp = w_map.get(txn_date)
+                            if temp is not None:
+                                if min_temp is not None and temp < min_temp:
+                                    continue
+                                if max_temp is not None and temp > max_temp:
+                                    continue
+                                filtered_by_temp.append(t)
+                        except ValueError:
+                            pass
+                transactions = filtered_by_temp
 
         result.append({
             "account_id": acct["account_id"],
@@ -393,7 +470,14 @@ async def get_user_transactions(
 
 
 @app.get("/api/transactions", tags=["transaction-history"])
-async def get_all_transactions():
+async def get_all_transactions(
+    account_type: Optional[str] = Query(None, description="Filter by account type (e.g. TRANSACTION, SAVINGS)"),
+    txn_type: Optional[str] = Query(None, description="Filter by transaction type (DEBIT or CREDIT)"),
+    from_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    to_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    min_temp: Optional[float] = Query(None, description="Minimum mean temperature (Celsius)"),
+    max_temp: Optional[float] = Query(None, description="Maximum mean temperature (Celsius)"),
+):
     """
     Get saved transaction history for ALL users.
 
@@ -409,7 +493,88 @@ async def get_all_transactions():
         accounts = []
         for stmt in data.get("statements", []):
             acct = stmt["account"]
+            
+            # Filter by account type
+            if account_type and acct.get("account_type", "").upper() != account_type.upper():
+                continue
+                
             txns = stmt.get("transactions", [])
+            
+            # Filter by transaction type
+            if txn_type:
+                txns = [t for t in txns if t.get("transaction_type", "").upper() == txn_type.upper()]
+                
+            # Filter by date range
+            if from_date or to_date:
+                filtered_by_date = []
+                start_dt = datetime.fromisoformat(from_date).date() if from_date else datetime.min.date()
+                end_dt = datetime.fromisoformat(to_date).date() if to_date else datetime.max.date()
+                for t in txns:
+                    ts_str = t.get("timestamp", "").replace("Z", "+00:00")
+                    if ts_str:
+                        try:
+                            txn_date = datetime.fromisoformat(ts_str).date()
+                            if start_dt <= txn_date <= end_dt:
+                                filtered_by_date.append(t)
+                        except ValueError:
+                            pass
+                txns = filtered_by_date
+                
+            # Filter by temperature
+            if min_temp is not None or max_temp is not None:
+                if not txns:
+                    continue
+                    
+                dates = []
+                for t in txns:
+                    ts_str = t.get("timestamp", "").replace("Z", "+00:00")
+                    if ts_str:
+                        try:
+                            dates.append(datetime.fromisoformat(ts_str).date())
+                        except ValueError:
+                            pass
+                            
+                if dates:
+                    w_start = min(dates).isoformat()
+                    w_end = max(dates).isoformat()
+                    
+                    weather_url = (
+                        "https://api.open-meteo.com/v1/forecast?"
+                        "latitude=51.5074&longitude=-0.1278"
+                        f"&start_date={w_start}&end_date={w_end}"
+                        "&daily=temperature_2m_mean"
+                        "&timezone=Europe/London"
+                    )
+                    
+                    try:
+                        async with httpx.AsyncClient() as client:
+                            w_resp = await client.get(weather_url)
+                            w_data = w_resp.json()
+                            w_map = {
+                                d: w_data["daily"]["temperature_2m_mean"][i]
+                                for i, d in enumerate(w_data["daily"]["time"])
+                            }
+                    except Exception as e:
+                        logger.error("Failed to fetch weather for filtering: %s", e)
+                        w_map = {}
+                        
+                    filtered_by_temp = []
+                    for t in txns:
+                        ts_str = t.get("timestamp", "").replace("Z", "+00:00")
+                        if ts_str:
+                            try:
+                                txn_date = datetime.fromisoformat(ts_str).date().isoformat()
+                                temp = w_map.get(txn_date)
+                                if temp is not None:
+                                    if min_temp is not None and temp < min_temp:
+                                        continue
+                                    if max_temp is not None and temp > max_temp:
+                                        continue
+                                    filtered_by_temp.append(t)
+                            except ValueError:
+                                pass
+                    txns = filtered_by_temp
+
             accounts.append({
                 "account_id": acct["account_id"],
                 "account_type": acct.get("account_type"),
