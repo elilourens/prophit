@@ -11,7 +11,17 @@ from pathlib import Path
 
 import gradio as gr
 
-from main import ask_claude, ask_gemini, ask_openai, ask_claude_calendar, prepare_input, get_budget_tips, get_income_runway, generate_financial_summary
+from main import (
+    ask_claude,
+    ask_gemini,
+    ask_openai,
+    ask_claude_calendar,
+    prepare_input,
+    get_budget_tips,
+    get_income_runway,
+    generate_financial_summary,
+    run_week_ahead_pipeline,
+)
 
 DATA_DIR = Path(__file__).parent.parent / "backend" / "data"
 
@@ -59,54 +69,108 @@ def analyse_local(filename):
 def _format_calendar(raw_json: str) -> str:
     """Format calendar JSON into a readable markdown string."""
     try:
-        # Strip markdown code fences if present
         cleaned = raw_json.strip()
         if cleaned.startswith("```json"):
-            cleaned = cleaned[7:]  # remove ```json
+            cleaned = cleaned[7:]
         elif cleaned.startswith("```"):
-            cleaned = cleaned[3:]  # remove ```
+            cleaned = cleaned[3:]
         if cleaned.endswith("```"):
-            cleaned = cleaned[:-3]  # remove trailing ```
+            cleaned = cleaned[:-3]
         cleaned = cleaned.strip()
-
         cal = json.loads(cleaned)
     except (json.JSONDecodeError, TypeError):
-        return raw_json  # return raw if not valid JSON
+        return raw_json
 
     lines = [f"## Week Ahead — Starting {cal.get('week_start', '?')}\n"]
     for day in cal.get("daily_predictions", []):
         lines.append(f"### {day['day']} ({day['date']})")
         for p in day.get("predictions", []):
-            agreed = ", ".join(p.get("agreed_by", []))
+            agreed_list = p.get("agreed_by") or []
+            agreed = ", ".join(str(x) for x in agreed_list) if agreed_list else "—"
+            avg = p.get("avg_spend", 0)
             lines.append(
-                f"- **{p['behavior']}** — {p['likelihood']}% likelihood, "
-                f"~${p['avg_spend']:.2f} avg  _(agreed: {agreed})_"
+                f"- **{p['behavior']}** — {p.get('likelihood', 0)}% likelihood, "
+                f"~${avg:.2f} avg  _(agreed: {agreed})_"
             )
         lines.append("")
     return "\n".join(lines)
 
 
+def _format_week_ahead_response(result: dict) -> str:
+    """Build markdown: location, context used (only true when at least one day has weather or holiday ok), summary, debug panel, calendar."""
+    parts = []
+    # Location
+    if result.get("used_default_location"):
+        parts.append("**Location:** Default (London)")
+    else:
+        src = result.get("location_source", "unknown")
+        parts.append(f"**Location:** From {src} (request or env)")
+    parts.append("")
+    # Context used: true only if at least one day has weather_status=="ok" or holiday_status=="ok"
+    context_used = result.get("context_available") or result.get("context_used")
+    if context_used:
+        parts.append("**Context used:** Yes — weather and/or holiday data used for predictions.")
+    else:
+        parts.append("**Context used:** No — context unavailable; predictions are history-only.")
+        errs = result.get("context_errors") or []
+        if errs:
+            parts.append("_( " + "; ".join(errs) + " )_")
+    parts.append("")
+    parts.append("### Context Summary\n")
+    parts.append(result.get("context_summary") or "—")
+    # Debug panel: per-day weather_status, holiday_status, holiday_error
+    day_context = result.get("day_context") or []
+    if day_context:
+        parts.append("\n#### Debug: Per-day context status\n")
+        parts.append("| Date | weather_status | holiday_status | holiday_error |")
+        parts.append("|------|----------------|----------------|---------------|")
+        for dc in day_context:
+            w = dc.get("weather") or {}
+            h = dc.get("holiday") or {}
+            ws = w.get("weather_status") or "—"
+            hs = h.get("holiday_status") or "—"
+            he = (h.get("holiday_error") or "—")[:40]
+            parts.append(f"| {dc.get('date', '?')} | {ws} | {hs} | {he} |")
+    parts.append("\n---\n\n")
+    cal = result.get("final_calendar") or {}
+    parts.append(f"## Week Ahead — Starting {cal.get('week_start', '?')}\n")
+    for day in cal.get("daily_predictions", []):
+        parts.append(f"### {day['day']} ({day['date']})")
+        for p in day.get("predictions", []):
+            agreed_list = p.get("agreed_by") or []
+            agreed = ", ".join(str(x) for x in agreed_list) if agreed_list else "—"
+            avg = p.get("avg_spend", 0)
+            parts.append(
+                f"- **{p['behavior']}** — {p.get('likelihood', 0)}% likelihood, "
+                f"~${avg:.2f} avg  _(agreed: {agreed})_"
+            )
+        parts.append("")
+    return "\n".join(parts)
+
+
 def calendar_uploaded(file):
-    """Run predictions + calendar for an uploaded file."""
+    """Run context-aware week-ahead pipeline (weather + holidays + 3 candidates + judge)."""
     if file is None:
-        return "Upload a file first.", ""
+        return "Upload a file first.", "{}"
     data_str = _load_and_prepare(file.name)
-    claude, gemini, openai = _run_predictions(data_str)
-    raw = asyncio.run(ask_claude_calendar(data_str, claude, gemini, openai))
-    return _format_calendar(raw), raw
+    result = asyncio.run(run_week_ahead_pipeline(data_str, include_candidate_outputs=False))
+    md = _format_week_ahead_response(result)
+    raw = json.dumps(result, indent=2)
+    return md, raw
 
 
 def calendar_local(filename):
-    """Run predictions + calendar for a local file."""
+    """Run context-aware week-ahead pipeline for a local file."""
     if not filename:
-        return "Select a file first.", ""
+        return "Select a file first.", "{}"
     filepath = DATA_DIR / filename
     if not filepath.exists():
-        return f"File not found: {filepath}", ""
+        return f"File not found: {filepath}", "{}"
     data_str = _load_and_prepare(filepath)
-    claude, gemini, openai = _run_predictions(data_str)
-    raw = asyncio.run(ask_claude_calendar(data_str, claude, gemini, openai))
-    return _format_calendar(raw), raw
+    result = asyncio.run(run_week_ahead_pipeline(data_str, include_candidate_outputs=False))
+    md = _format_week_ahead_response(result)
+    raw = json.dumps(result, indent=2)
+    return md, raw
 
 
 def get_tips(predictions_text):
@@ -192,9 +256,9 @@ with gr.Blocks(
 
         # --- Tab 3: Week Ahead Calendar ---
         with gr.Tab("Week Ahead"):
-            gr.Markdown("Runs all providers, then sends combined results to Claude "
-                        "to build a week-ahead spending calendar. "
-                        "Predictions that agree across models are prioritised.")
+            gr.Markdown("Context-aware week-ahead: weather (Open-Meteo) + public holidays (OpenHolidaysAPI) "
+                        "are used to adjust likelihoods. Three candidate LLMs produce calendars; a judge picks the best. "
+                        "Set USER_LAT, USER_LON, USER_COUNTRY in .env for your location.")
 
             with gr.Tabs():
                 with gr.Tab("Upload File"):

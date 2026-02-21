@@ -10,11 +10,15 @@ Run:
   uvicorn main:app --reload --port 8002
 """
 
+import asyncio
 import csv
 import io
 import json
+import logging
 import os
 from datetime import date, datetime, timedelta
+
+logger = logging.getLogger(__name__)
 from pathlib import Path
 
 import anthropic
@@ -35,6 +39,12 @@ load_dotenv()
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+# Week-ahead context (weather + holidays). If unset, use placeholder and set context_unavailable.
+USER_LAT = os.getenv("USER_LAT")
+USER_LON = os.getenv("USER_LON")
+USER_COUNTRY = os.getenv("USER_COUNTRY", "GB")
+USER_SUBDIVISION = os.getenv("USER_SUBDIVISION")  # e.g. GB-ENG
 
 SYSTEM_PROMPT = """\
 You are a personal finance analyst. Analyze the user's banking transaction history to identify recurring behavioral patterns.
@@ -413,6 +423,57 @@ async def ask_openai(data_str: str) -> str:
         return f"[ERROR] OpenAI failed: {e}"
 
 
+# Context-effect guidance: must be included in all candidate and judge prompts.
+CONTEXT_EFFECT_GUIDANCE = """
+CONTEXT-EFFECT RULES (you MUST follow these):
+- Adjust likelihoods and/or expected spend using ONLY the weather and holiday context provided below. Do NOT invent weather or holiday facts.
+- If precip_probability >= 60: you MAY increase likelihood for ride-hailing/food delivery by +5 to +20 (depending on history strength); you MAY decrease walk-in dining by -5 to -15. Always clamp final likelihood to 0–95.
+- If is_holiday is true: you MAY increase discretionary/entertainment likelihood by +5 to +15; commuting/transport may decrease unless transaction history suggests otherwise.
+- If context is missing or "Unknown", do NOT adjust; state "insufficient evidence" for context-based changes and base predictions only on transaction history.
+- Do NOT add weather or holiday details that are not in the provided day_context. Do NOT hallucinate context.
+"""
+
+
+def _build_context_summary(day_context: list[dict]) -> str:
+    """
+    One line per day. Never show 'not a holiday' unless holiday_status=='ok'.
+    Weather: show 'weather unknown' when weather_status!='ok'.
+    Holiday: if holiday_status=='ok' and is_holiday -> 'HOLIDAY: <name>'; elif holiday_status=='ok' -> 'not a holiday'; else -> 'holiday unknown'.
+    """
+    lines = []
+    for dc in day_context:
+        date_str = dc.get("date", "?")[:10]
+        w = dc.get("weather") or {}
+        h = dc.get("holiday") or {}
+        w_status = w.get("weather_status", "error")
+        h_status = h.get("holiday_status", "error")
+        parts = [f"{date_str}:"]
+        if w_status == "ok":
+            cond = w.get("condition_summary")
+            precip = w.get("precip_probability")
+            temp_max = w.get("temp_max_c")
+            if cond:
+                parts.append(cond.lower())
+                if precip is not None:
+                    parts.append(f" (precip {precip}%)")
+            else:
+                parts.append("—")
+            if temp_max is not None:
+                parts.append(f", max {temp_max:.0f}°C")
+        else:
+            parts.append("weather unknown")
+        if h_status == "ok":
+            if h.get("is_holiday"):
+                name = h.get("holiday_name") or h.get("name") or "Holiday"
+                parts.append(f", HOLIDAY: {name}")
+            else:
+                parts.append(", not a holiday")
+        else:
+            parts.append(", holiday unknown")
+        lines.append(" ".join(parts))
+    return "\n".join(lines)
+
+
 CALENDAR_PROMPT = """\
 You are a spending prediction engine. You are given:
 1. The user's RAW transaction history
@@ -450,8 +511,57 @@ JSON format:
 """
 
 
+def _calendar_candidate_prompt(
+    start_date: str,
+    day_context_json: str,
+    context_summary_line: str,
+    provider_name: str,
+) -> str:
+    return f"""You are a spending prediction engine. You are given:
+1. The user's RAW transaction data
+2. Prediction tables from multiple AI models
+3. WEEK-AHEAD CONTEXT (weather and public holidays) for each of the next 7 days.
+
+CONTEXT SUMMARY (location and conditions):
+{context_summary_line}
+
+Your job: produce a single week-ahead calendar (7 days starting {start_date}) that:
+- Uses the raw transaction data and model tables to pick 2-3 predictions per day (behavior, likelihood, avg_spend, agreed_by).
+- MUST adjust likelihoods using the provided day_context: rainy days increase likelihood for delivery/ride-hailing if user has history; holidays/weekends may increase leisure/eating-out/shopping. If context is missing for a day, do not fabricate weather/holiday.
+{CONTEXT_EFFECT_GUIDANCE}
+
+DAY CONTEXT (use only this; do not invent):
+{day_context_json}
+
+REQUIRED: Every prediction MUST have "agreed_by" as a non-empty array. For this calendar (produced by {provider_name}), set agreed_by to exactly ["{provider_name}"] for every prediction.
+
+Output ONLY raw JSON with NO markdown code fences (no ```json, no ```), NO explanations. Schema:
+{{ "week_start": "{start_date}", "daily_predictions": [ {{ "date": "YYYY-MM-DD", "day": "Monday", "predictions": [ {{ "behavior": "...", "likelihood": 0-95, "avg_spend": number, "agreed_by": ["{provider_name}"] }} ] }} ] }}
+"""
+
+
+JUDGE_PROMPT = """\
+You are a judge evaluating three candidate week-ahead spending calendars. You are given:
+1. The same DAY CONTEXT (weather and holidays) that the candidates used.
+2. Three candidate calendar JSONs (claude, gemini, openai).
+
+Evaluation rubric:
+- Uses weather/holiday context correctly: likelihoods and spend expectations are plausibly adjusted for rain, temperature, and holidays. No invented context.
+- Avoids hallucination: only behaviors and merchants that appear in the transaction evidence; no fabricated weather or holiday facts.
+- Plausible likelihood calibration: values 0–95, consistent with history and context.
+- Consistency with transaction history: merchant names and amounts align with raw data.
+- Valid schema: valid JSON with week_start and daily_predictions array. Every prediction MUST have a non-empty "agreed_by" array.
+
+When choosing or merging: if you merge predictions from multiple candidates, set agreed_by to the union of provider names that had that prediction (e.g. ["claude", "gemini"]). Never leave agreed_by empty; use at least ["judge"] if you invent nothing.
+
+You MUST penalize candidates that ignore context or fabricate context. Choose the single best candidate (output its exact JSON) or merge the best parts into one calendar. If merging, preserve valid schema and only include predictions supported by evidence and context.
+
+Output ONLY the chosen or merged calendar as raw JSON. No markdown fences, no explanation.
+"""
+
+
 async def ask_claude_calendar(data_str: str, claude_result: str, gemini_result: str, openai_result: str) -> str:
-    """Send raw data + combined provider results to Claude to build a week-ahead calendar."""
+    """Send raw data + combined provider results to Claude to build a week-ahead calendar (legacy, no context)."""
     if not ANTHROPIC_API_KEY:
         return "[SKIPPED] ANTHROPIC_API_KEY not set"
 
@@ -477,6 +587,244 @@ async def ask_claude_calendar(data_str: str, claude_result: str, gemini_result: 
         return message.content[0].text
     except Exception as e:
         return f"[ERROR] Claude calendar failed: {e}"
+
+
+def _parse_calendar_json(raw: str) -> dict | None:
+    """Strip markdown fences and parse calendar JSON. Returns None on failure."""
+    cleaned = (raw or "").strip()
+    for prefix in ("```json\n", "```json", "```"):
+        if cleaned.startswith(prefix):
+            cleaned = cleaned[len(prefix):].lstrip()
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3].rstrip()
+    try:
+        return json.loads(cleaned)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
+def _normalize_final_calendar_agreed_by(cal: dict) -> None:
+    """Ensure every prediction has non-empty agreed_by (mutates cal)."""
+    for day in cal.get("daily_predictions") or []:
+        for p in day.get("predictions") or []:
+            ab = p.get("agreed_by")
+            if not ab or not isinstance(ab, list):
+                p["agreed_by"] = ["judge"]
+            else:
+                p["agreed_by"] = [x for x in ab if x]
+            if not p["agreed_by"]:
+                p["agreed_by"] = ["judge"]
+
+
+def _context_summary_line_for_prompt(metadata: dict, context_summary: str) -> str:
+    """Short line for prompts: location source and which days have rain/holiday."""
+    loc = metadata.get("location_source", "unknown")
+    default = " (default location)" if metadata.get("used_default_location") else ""
+    lines = [f"Location source: {loc}{default}."]
+    if metadata.get("context_errors"):
+        lines.append("Context errors: " + "; ".join(metadata["context_errors"]))
+    lines.append("Per-day summary:\n" + context_summary)
+    return "\n".join(lines)
+
+
+async def _ask_calendar_candidate_claude(
+    data_str: str,
+    combined_tables: str,
+    day_context: list[dict],
+    start_date: str,
+    context_summary_line: str,
+) -> str:
+    if not ANTHROPIC_API_KEY:
+        return ""
+    prompt = _calendar_candidate_prompt(
+        start_date, json.dumps(day_context, indent=2), context_summary_line, "claude"
+    )
+    body = f"{prompt}\n\n=== Raw Transaction Data ===\n{data_str}\n\n=== Model Predictions ===\n{combined_tables}"
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=2048,
+            messages=[{"role": "user", "content": body}],
+        )
+        return message.content[0].text or ""
+    except Exception as e:
+        return f"[ERROR] {e}"
+
+
+async def _ask_calendar_candidate_gemini(
+    data_str: str,
+    combined_tables: str,
+    day_context: list[dict],
+    start_date: str,
+    context_summary_line: str,
+) -> str:
+    if not GEMINI_API_KEY:
+        return ""
+    prompt = _calendar_candidate_prompt(
+        start_date, json.dumps(day_context, indent=2), context_summary_line, "gemini"
+    )
+    body = f"{prompt}\n\n=== Raw Transaction Data ===\n{data_str}\n\n=== Model Predictions ===\n{combined_tables}"
+    try:
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-lite",
+            contents=body,
+        )
+        return response.text or ""
+    except Exception as e:
+        return f"[ERROR] {e}"
+
+
+async def _ask_calendar_candidate_openai(
+    data_str: str,
+    combined_tables: str,
+    day_context: list[dict],
+    start_date: str,
+    context_summary_line: str,
+) -> str:
+    if not OPENAI_API_KEY:
+        return ""
+    prompt = _calendar_candidate_prompt(
+        start_date, json.dumps(day_context, indent=2), context_summary_line, "openai"
+    )
+    body = f"{prompt}\n\n=== Raw Transaction Data ===\n{data_str}\n\n=== Model Predictions ===\n{combined_tables}"
+    try:
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": body}],
+            max_tokens=2048,
+        )
+        return (response.choices[0].message.content or "").strip()
+    except Exception as e:
+        return f"[ERROR] {e}"
+
+
+async def _ask_judge_calendar(
+    day_context: list[dict],
+    claude_cal: str,
+    gemini_cal: str,
+    openai_cal: str,
+) -> str:
+    """Judge picks best of three candidate calendars. Uses Claude."""
+    if not ANTHROPIC_API_KEY:
+        return ""
+    body = (
+        f"{JUDGE_PROMPT}\n\n=== DAY CONTEXT ===\n{json.dumps(day_context, indent=2)}\n\n"
+        "=== Candidate Claude ===\n" + claude_cal + "\n\n"
+        "=== Candidate Gemini ===\n" + gemini_cal + "\n\n"
+        "=== Candidate OpenAI ===\n" + openai_cal
+    )
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        message = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=2048,
+            messages=[{"role": "user", "content": body}],
+        )
+        return message.content[0].text or ""
+    except Exception as e:
+        return f"[ERROR] {e}"
+
+
+async def run_week_ahead_pipeline(
+    data_str: str,
+    lat: float | None = None,
+    lon: float | None = None,
+    country_code: str | None = None,
+    subdivision_code: str | None = None,
+    include_candidate_outputs: bool = False,
+) -> dict:
+    """
+    Run context-aware week-ahead: build day_context, 3 candidate calendars, judge picks best.
+
+    Response schema:
+    {
+      "context_summary": str,        // One line per day, e.g. "2026-02-22: rainy (80%), not a holiday"
+      "day_context": [                // 7 items
+        {
+          "date": "YYYY-MM-DD",
+          "weekday": "Monday",
+          "weather": { "precip_probability": 0-100, "precip_mm": float, "temp_min_c", "temp_max_c", "condition_summary": "Rainy|Clear|..." },
+          "holiday": { "is_holiday": bool, "name": str|null, "type": "Public"|null }
+        }
+      ],
+      "context_unavailable": bool,
+      "candidate_outputs": { "claude": str, "gemini": str, "openai": str } | null,  // when include_candidate_outputs
+      "judge_output": str,            // Raw judge LLM response
+      "final_calendar": { "week_start", "daily_predictions": [ { "date", "day", "predictions": [ { "behavior", "likelihood", "avg_spend", "agreed_by" } ] } ] },
+      "final_calendar_raw": str
+    }
+    """
+    start = date.today() + timedelta(days=1)
+    start_date = start.isoformat()
+    lat = float(lat) if lat is not None else (float(USER_LAT) if USER_LAT else None)
+    lon = float(lon) if lon is not None else (float(USER_LON) if USER_LON else None)
+    country = country_code or USER_COUNTRY
+    subdivision = subdivision_code or USER_SUBDIVISION
+
+    from services.context_service import get_week_context_with_availability
+    day_context, context_metadata = get_week_context_with_availability(start, lat, lon, country, subdivision)
+    context_summary = _build_context_summary(day_context)
+    context_available = context_metadata.get("context_available", False)
+    context_unavailable = not context_available
+    if context_unavailable and context_metadata.get("context_errors"):
+        logger.warning(
+            "Week-ahead context partially or fully unavailable: %s",
+            "; ".join(context_metadata["context_errors"]),
+        )
+
+    context_summary_line = _context_summary_line_for_prompt(context_metadata, context_summary)
+
+    # Pattern tables from 3 models (for candidate inputs)
+    claude_result = await ask_claude(data_str)
+    gemini_result = await ask_gemini(data_str)
+    openai_result = await ask_openai(data_str)
+    combined_tables = (
+        "=== Claude ===\n" + claude_result + "\n\n=== Gemini ===\n" + gemini_result + "\n\n=== OpenAI ===\n" + openai_result
+    )
+
+    # Three candidates produce calendar JSON (each sets agreed_by to its provider name)
+    claude_cal, gemini_cal, openai_cal = await asyncio.gather(
+        _ask_calendar_candidate_claude(data_str, combined_tables, day_context, start_date, context_summary_line),
+        _ask_calendar_candidate_gemini(data_str, combined_tables, day_context, start_date, context_summary_line),
+        _ask_calendar_candidate_openai(data_str, combined_tables, day_context, start_date, context_summary_line),
+    )
+
+    candidate_outputs = None
+    if include_candidate_outputs:
+        candidate_outputs = {"claude": claude_cal, "gemini": gemini_cal, "openai": openai_cal}
+
+    # Judge picks best
+    judge_raw = await _ask_judge_calendar(day_context, claude_cal, gemini_cal, openai_cal)
+    final_calendar = _parse_calendar_json(judge_raw)
+    if final_calendar is None:
+        for raw in (claude_cal, gemini_cal, openai_cal):
+            final_calendar = _parse_calendar_json(raw)
+            if final_calendar is not None:
+                break
+        if final_calendar is None:
+            final_calendar = {"week_start": start_date, "daily_predictions": [], "error": "Could not parse any calendar"}
+    _normalize_final_calendar_agreed_by(final_calendar)
+
+    return {
+        "context_summary": context_summary,
+        "day_context": day_context,
+        "context_unavailable": context_unavailable,
+        "context_available": context_available,
+        "context_errors": context_metadata.get("context_errors", []),
+        "location_source": context_metadata.get("location_source", "unknown"),
+        "used_default_location": context_metadata.get("used_default_location", False),
+        "weather_ok": context_metadata.get("weather_ok", False),
+        "holiday_ok": context_metadata.get("holiday_ok", False),
+        "holiday_status": context_metadata.get("holiday_status", "missing"),
+        "holiday_error": context_metadata.get("holiday_error"),
+        "candidate_outputs": candidate_outputs,
+        "judge_output": judge_raw,
+        "final_calendar": final_calendar,
+        "final_calendar_raw": judge_raw,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -566,6 +914,67 @@ async def analyse_local(filename: str = "john.json"):
     print("=" * 60 + "\n")
 
     return _render_results(filename, claude_response, gemini_response, openai_response)
+
+
+@app.get("/week-ahead-context-check", tags=["calendar"])
+async def week_ahead_context_check(
+    lat: float | None = None,
+    lon: float | None = None,
+    country_code: str | None = None,
+    subdivision_code: str | None = None,
+):
+    """
+    Quick check: fetch week context (weather + holidays) for the next 7 days and return day_context.
+    Use to verify Open-Meteo and OpenHolidaysAPI calls succeed. No transaction file required.
+    """
+    start = date.today() + timedelta(days=1)
+    from services.context_service import get_week_context_with_availability
+    lat = float(lat) if lat is not None else (float(USER_LAT) if USER_LAT else None)
+    lon = float(lon) if lon is not None else (float(USER_LON) if USER_LON else None)
+    country = country_code or USER_COUNTRY
+    subdivision = subdivision_code or USER_SUBDIVISION
+    day_context, metadata = get_week_context_with_availability(start, lat, lon, country, subdivision)
+    summary = _build_context_summary(day_context)
+    return {
+        "day_context": day_context,
+        "context_summary": summary,
+        "context_used": metadata.get("context_used", False),
+        "weather_ok": metadata.get("weather_ok"),
+        "holiday_status": metadata.get("holiday_status"),
+        "holiday_error": metadata.get("holiday_error"),
+        "context_errors": metadata.get("context_errors", []),
+    }
+
+
+@app.post("/week-ahead", tags=["llm", "calendar"])
+async def week_ahead(
+    file: UploadFile = File(...),
+    lat: float | None = None,
+    lon: float | None = None,
+    country_code: str | None = None,
+    subdivision_code: str | None = None,
+    include_candidate_outputs: bool = False,
+):
+    """
+    Context-aware week-ahead predictions: weather (Open-Meteo) + public holidays (OpenHolidaysAPI).
+    Runs 3 candidate LLMs (calendar each), then judge LLM picks best. Returns context_summary,
+    day_context, final_calendar, and optionally candidate_outputs.
+    """
+    raw = await file.read()
+    try:
+        data_str = prepare_input(raw, file.filename or "file")
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        raise HTTPException(status_code=400, detail=f"Invalid file: {e}")
+
+    result = await run_week_ahead_pipeline(
+        data_str,
+        lat=lat,
+        lon=lon,
+        country_code=country_code,
+        subdivision_code=subdivision_code,
+        include_candidate_outputs=include_candidate_outputs,
+    )
+    return result
 
 
 @app.post("/budget-tips", tags=["budget"])
