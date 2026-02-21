@@ -371,6 +371,112 @@ def _extract_pdf(raw_bytes: bytes) -> str:
     return "\n".join(text_parts)
 
 
+PDF_TRANSACTION_EXTRACTION_PROMPT = """\
+You are a bank statement parser. Extract ALL transactions from the provided bank statement text.
+
+Output ONLY a valid JSON array of transactions. Each transaction must have:
+- "date": the transaction date in YYYY-MM-DD format (convert from any format you see)
+- "description": the merchant/payee name or transaction description
+- "amount": the amount as a number (NEGATIVE for debits/spending, POSITIVE for credits/income)
+- "category": categorize as one of: Groceries, Dining, Coffee, Transport, Shopping, Subscriptions, Utilities, Rent, Entertainment, Healthcare, Transfer, Income, Other
+
+Rules:
+- Include EVERY transaction you can find in the statement
+- Convert dates to YYYY-MM-DD format
+- For debits/payments/purchases: use NEGATIVE amounts
+- For credits/deposits/refunds: use POSITIVE amounts
+- Remove currency symbols, just output the number
+- If you cannot determine a field, use reasonable defaults
+- Output ONLY the JSON array, no explanations, no markdown code blocks
+
+Example output:
+[
+  {"date": "2026-02-15", "description": "TESCO STORES", "amount": -45.67, "category": "Groceries"},
+  {"date": "2026-02-14", "description": "SALARY ACME INC", "amount": 2500.00, "category": "Income"},
+  {"date": "2026-02-13", "description": "NETFLIX", "amount": -15.99, "category": "Subscriptions"}
+]
+"""
+
+
+async def extract_transactions_from_pdf(pdf_text: str) -> list[dict]:
+    """Use LLM to extract structured transactions from PDF bank statement text."""
+    if not OPENAI_API_KEY:
+        logger.error("OPENAI_API_KEY not set for PDF extraction")
+        return []
+
+    try:
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": PDF_TRANSACTION_EXTRACTION_PROMPT},
+                {"role": "user", "content": f"Extract transactions from this bank statement:\n\n{pdf_text[:30000]}"}
+            ],
+            max_tokens=4000,
+            temperature=0.1,
+        )
+
+        result_text = response.choices[0].message.content.strip()
+
+        # Clean up response - remove markdown code blocks if present
+        if result_text.startswith("```json"):
+            result_text = result_text[7:]
+        elif result_text.startswith("```"):
+            result_text = result_text[3:]
+        if result_text.endswith("```"):
+            result_text = result_text[:-3]
+        result_text = result_text.strip()
+
+        transactions = json.loads(result_text)
+        logger.info(f"Extracted {len(transactions)} transactions from PDF")
+        return transactions
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse LLM response as JSON: {e}")
+        return []
+    except Exception as e:
+        logger.error(f"PDF transaction extraction failed: {e}")
+        return []
+
+
+async def parse_pdf_to_transactions(raw_bytes: bytes) -> dict:
+    """
+    Full pipeline: extract text from PDF, then use LLM to parse transactions.
+    Returns dict with transactions array and summary.
+    """
+    # Step 1: Extract text from PDF
+    pdf_text = _extract_pdf(raw_bytes)
+    if not pdf_text.strip():
+        return {"transactions": [], "error": "Could not extract text from PDF"}
+
+    # Step 2: Use LLM to extract structured transactions
+    transactions = await extract_transactions_from_pdf(pdf_text)
+
+    if not transactions:
+        return {"transactions": [], "error": "Could not extract transactions from PDF text"}
+
+    # Step 3: Calculate basic summary
+    total_spent = sum(abs(t["amount"]) for t in transactions if t.get("amount", 0) < 0)
+    total_income = sum(t["amount"] for t in transactions if t.get("amount", 0) > 0)
+
+    # Get date range
+    dates = [t.get("date") for t in transactions if t.get("date")]
+    dates.sort()
+
+    return {
+        "transactions": transactions,
+        "summary": {
+            "total_transactions": len(transactions),
+            "total_spent": round(total_spent, 2),
+            "total_income": round(total_income, 2),
+            "date_range": {
+                "start": dates[0] if dates else None,
+                "end": dates[-1] if dates else None,
+            }
+        }
+    }
+
+
 def _extract_csv(raw_bytes: bytes) -> str:
     """Convert CSV to a readable text table."""
     text = raw_bytes.decode("utf-8", errors="replace")

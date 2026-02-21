@@ -149,24 +149,157 @@ async function uploadFileToGradio(fileContent: string, filename: string): Promis
 let useUploadedData = false;
 let uploadedFileContent: string | null = null;
 
-export function setUseUploadedData(value: boolean, fileContent?: string): void {
+export async function setUseUploadedData(value: boolean, fileContent?: string): Promise<boolean> {
   useUploadedData = value;
   if (fileContent) {
     uploadedFileContent = fileContent;
-    // Parse the uploaded content and set it as the cached dataset
+
+    // Check if it's a PDF - needs backend parsing
+    if (fileContent.startsWith('data:application/pdf;base64,')) {
+      console.log('PDF detected - sending to backend for parsing...');
+      try {
+        const parsedData = await parsePDFViaBackend(fileContent);
+        if (parsedData && parsedData.transactions.length > 0) {
+          cachedUserDataset = parsedData;
+          return true;
+        } else {
+          console.warn('No transactions extracted from PDF');
+          return false;
+        }
+      } catch (error) {
+        console.error('Error parsing PDF:', error);
+        return false;
+      }
+    }
+
+    // For text files, parse locally
     const parsedDataset = parseUploadedContent(fileContent);
     if (parsedDataset) {
       cachedUserDataset = parsedDataset;
+      return true;
     }
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Send PDF to backend for parsing and extract transactions
+ */
+async function parsePDFViaBackend(base64Content: string): Promise<UserDataset | null> {
+  try {
+    // Extract just the base64 data without the prefix
+    const base64Data = base64Content.replace('data:application/pdf;base64,', '');
+
+    // Convert base64 to blob for upload
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'application/pdf' });
+
+    // Upload file to Gradio
+    const formData = new FormData();
+    formData.append('files', blob, 'statement.pdf');
+
+    console.log('Uploading PDF to backend...');
+    const uploadRes = await fetch(`${BASE_URL}/gradio_api/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!uploadRes.ok) {
+      console.error('PDF upload failed:', uploadRes.status);
+      return null;
+    }
+
+    const uploadResult = await uploadRes.json();
+    const filePath = uploadResult[0]; // Returns file path on server
+    console.log('PDF uploaded, path:', filePath);
+
+    // Call parse_pdf endpoint with the uploaded file
+    const result = await callGradioApi('parse_pdf', [{
+      path: filePath,
+      meta: { _type: 'gradio.FileData' }
+    }], 90000); // 90 second timeout for PDF parsing
+
+    if (result && result[0]) {
+      console.log('Parse result:', result[0]);
+      // Backend returns JSON string with transactions array
+      let transactions: Transaction[] = [];
+
+      // Try to parse the result
+      let parsed: any;
+      if (typeof result[0] === 'string') {
+        try {
+          parsed = JSON.parse(result[0]);
+        } catch {
+          console.error('Failed to parse result as JSON');
+          return null;
+        }
+      } else {
+        parsed = result[0];
+      }
+
+      // Extract transactions from the result
+      if (parsed.transactions && Array.isArray(parsed.transactions)) {
+        transactions = parsed.transactions.map(normalizeTransaction);
+      } else if (Array.isArray(parsed)) {
+        transactions = parsed.map(normalizeTransaction);
+      }
+
+      if (transactions.length > 0) {
+        console.log(`Extracted ${transactions.length} transactions from PDF`);
+        const summary = calculateSummaryFromTransactions(transactions);
+        return { id: -1, transactions, summary };
+      } else {
+        console.warn('No transactions found in parsed result');
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error in parsePDFViaBackend:', error);
+    return null;
   }
 }
 
 /**
- * Parse uploaded file content (CSV, JSON, or raw text) into a UserDataset
+ * Parse uploaded file content (CSV, JSON, PDF, or raw text) into a UserDataset
  */
 function parseUploadedContent(content: string): UserDataset | null {
   try {
     let transactions: Transaction[] = [];
+
+    // Check if it's a PDF (base64 encoded)
+    if (content.startsWith('data:application/pdf;base64,')) {
+      // For PDFs, we need to send to backend for parsing
+      // For now, store the raw content and mark as PDF for later processing
+      console.log('PDF detected - will be processed by backend');
+      // Return a placeholder dataset - actual data will come from backend API calls
+      return {
+        id: -1,
+        transactions: [],
+        summary: {
+          totalSpent: 0,
+          avgDaily: 0,
+          avgMonthly: 0,
+          topCategories: [],
+          monthlyIncome: 0,
+          savings: 0,
+          monthlySnapshots: [],
+          weeklyAverages: [],
+          seasonalData: { winter: 0, spring: 0, summer: 0, autumn: 0 },
+          spendingTrend: 'stable',
+          savingsRate: 0,
+          projectedMonthlySpend: 0,
+          runwayMonths: 0,
+          dataRangeMonths: 0,
+        },
+      };
+    }
 
     // Try parsing as JSON first
     if (content.trim().startsWith('{') || content.trim().startsWith('[')) {

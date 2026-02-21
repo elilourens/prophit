@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { theme } from '../components/theme';
 import { setUseUploadedData } from '../services/backendApi';
 
@@ -134,8 +135,10 @@ export default function OnboardingScreen() {
   const [selectedSource, setSelectedSource] = useState<DataSourceOption | null>(null);
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState('Processing...');
 
   const totalSteps = 2;
+  const isPDF = selectedFile?.name?.toLowerCase().endsWith('.pdf');
 
   const handleSourceSelect = (source: DataSourceOption) => {
     setSelectedSource(source);
@@ -182,27 +185,62 @@ export default function OnboardingScreen() {
       return;
     }
 
+    const isPDFFile = selectedFile.name?.toLowerCase().endsWith('.pdf');
     setIsUploading(true);
+    setUploadMessage(isPDFFile ? 'Analyzing PDF...' : 'Processing...');
+
     try {
       let fileContent: string;
 
+      const isPDF = isPDFFile;
+
       if (Platform.OS === 'web') {
-        // Web: use fetch to read the blob
+        // Web: use fetch to read the file
         const response = await fetch(selectedFile.uri);
-        fileContent = await response.text();
+        if (isPDF) {
+          // For PDFs on web, read as base64
+          const blob = await response.blob();
+          fileContent = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64 = (reader.result as string).split(',')[1];
+              resolve(`data:application/pdf;base64,${base64}`);
+            };
+            reader.readAsDataURL(blob);
+          });
+        } else {
+          fileContent = await response.text();
+        }
       } else {
         // Native: use expo-file-system
-        const FileSystem = require('expo-file-system');
-        fileContent = await FileSystem.readAsStringAsync(selectedFile.uri, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
+        if (isPDF) {
+          // Read PDF as base64 for backend processing
+          const base64Content = await FileSystem.readAsStringAsync(selectedFile.uri, {
+            encoding: 'base64' as any,
+          });
+          fileContent = `data:application/pdf;base64,${base64Content}`;
+        } else {
+          // Text files (CSV, JSON, TXT)
+          fileContent = await FileSystem.readAsStringAsync(selectedFile.uri, {
+            encoding: 'utf8' as any,
+          });
+        }
       }
 
       // Store the uploaded content and mark as using uploaded data
-      setUseUploadedData(true, fileContent);
+      // This may call the backend for PDF parsing
+      const success = await setUseUploadedData(true, fileContent);
 
-      // Navigate to app
-      router.replace('/(tabs)');
+      if (success) {
+        // Navigate to app
+        router.replace('/(tabs)');
+      } else {
+        Alert.alert(
+          'Parsing Failed',
+          'Could not extract transactions from your file. Please try a CSV or JSON export from your bank.',
+          [{ text: 'OK' }]
+        );
+      }
     } catch (error) {
       console.error('Upload error:', error);
       Alert.alert('Error', 'Failed to process your file. Please try again.');
@@ -224,7 +262,9 @@ export default function OnboardingScreen() {
   };
 
   const handleClose = () => {
-    router.back();
+    // Use demo data and go to app (can't go back if this is first screen)
+    setUseUploadedData(false);
+    router.replace('/(tabs)');
   };
 
   const handleSkipUpload = () => {
@@ -299,14 +339,14 @@ export default function OnboardingScreen() {
           <View style={styles.titleSection}>
             <Text style={styles.title}>Upload Data</Text>
             <Text style={styles.subtitle}>
-              Upload your transaction file. We support CSV, JSON, PDF, and most common formats.
+              Upload your bank statement or transaction file.
             </Text>
           </View>
 
           <View style={styles.formatHint}>
             <Ionicons name="information-circle-outline" size={20} color={theme.colors.deepTeal} />
             <Text style={styles.formatHintText}>
-              Supported: CSV, JSON, PDF, Excel, bank statements, and more
+              Supported: PDF, CSV, JSON bank statements
             </Text>
           </View>
 
@@ -351,7 +391,11 @@ export default function OnboardingScreen() {
               disabled={!selectedFile || isUploading}
             >
               {isUploading ? (
-                <ActivityIndicator color={theme.colors.white} />
+                <>
+                  <ActivityIndicator color={theme.colors.white} size="small" />
+                  <Text style={styles.continueButtonText}>{uploadMessage}</Text>
+                </>
+
               ) : (
                 <>
                   <Ionicons name="cloud-upload" size={20} color={theme.colors.white} />

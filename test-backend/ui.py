@@ -21,6 +21,7 @@ from main import (
     get_income_runway,
     generate_financial_summary,
     run_week_ahead_pipeline,
+    parse_pdf_to_transactions,
 )
 
 DATA_DIR = Path(__file__).parent.parent / "backend" / "data"
@@ -54,6 +55,21 @@ def analyse_uploaded(file):
         return "Upload a file first.", "", ""
     data_str = _load_and_prepare(file.name)
     return _run_predictions(data_str)
+
+
+def parse_pdf(file):
+    """Parse a PDF bank statement and extract transactions as JSON."""
+    if file is None:
+        return json.dumps({"error": "Upload a PDF file first.", "transactions": []})
+
+    try:
+        with open(file.name, "rb") as f:
+            raw_bytes = f.read()
+
+        result = asyncio.run(parse_pdf_to_transactions(raw_bytes))
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return json.dumps({"error": str(e), "transactions": []})
 
 
 def analyse_local(filename):
@@ -344,6 +360,21 @@ with gr.Blocks(
                 fn=get_runway,
                 inputs=[runway_input],
                 outputs=[runway_output],
+            )
+
+        # --- Tab 6: PDF Parser ---
+        with gr.Tab("PDF Parser"):
+            gr.Markdown("Upload a PDF bank statement to extract transactions as structured JSON data.")
+
+            pdf_file_input = gr.File(label="Upload PDF", file_types=[".pdf"])
+            pdf_parse_btn = gr.Button("Extract Transactions", variant="primary")
+            pdf_output = gr.Code(label="Extracted Transactions (JSON)", language="json")
+
+            pdf_parse_btn.click(
+                fn=parse_pdf,
+                inputs=[pdf_file_input],
+                outputs=[pdf_output],
+                api_name="parse_pdf",  # Expose as API endpoint
             )
 
 if __name__ == "__main__":
