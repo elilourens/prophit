@@ -1,6 +1,10 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { theme } from './theme';
+import { ttsService } from '../services/ttsService';
+import { usePro } from '../contexts/ProContext';
+import { LockedFeatureModal } from './LockedFeatureModal';
 
 interface MorningBriefingProps {
   userName?: string;
@@ -34,6 +38,8 @@ const getWeatherSymbol = (icon?: string): string => {
   return iconMap[icon || 'sunny'] || '\u2600\uFE0F';
 };
 
+type PlaybackState = 'idle' | 'loading' | 'playing' | 'error';
+
 export const MorningBriefing: React.FC<MorningBriefingProps> = ({
   userName = 'Alex',
   temperature = 12,
@@ -46,13 +52,118 @@ export const MorningBriefing: React.FC<MorningBriefingProps> = ({
   nudge = 'You usually spend more on Fridays',
   onViewFullBriefing,
 }) => {
+  const { isPro } = usePro();
   const greeting = getGreeting();
   const weatherSymbol = getWeatherSymbol(weatherIcon);
 
+  const [playbackState, setPlaybackState] = useState<PlaybackState>('idle');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showLockedModal, setShowLockedModal] = useState(false);
+
+  const handlePlayBriefing = useCallback(async () => {
+    // Check if user is Pro
+    if (!isPro) {
+      setShowLockedModal(true);
+      return;
+    }
+
+    // If already playing, stop
+    if (playbackState === 'playing') {
+      await ttsService.stop();
+      setPlaybackState('idle');
+      return;
+    }
+
+    // Check if API is configured
+    if (!ttsService.isConfigured()) {
+      setErrorMessage('TTS not configured. Add EXPO_PUBLIC_ELEVENLABS_API_KEY to .env');
+      setPlaybackState('error');
+      setTimeout(() => {
+        setPlaybackState('idle');
+        setErrorMessage(null);
+      }, 3000);
+      return;
+    }
+
+    setPlaybackState('loading');
+    setErrorMessage(null);
+
+    try {
+      // Generate briefing text
+      const briefingText = ttsService.generateBriefingText({
+        userName,
+        temperature,
+        location,
+        topPrediction,
+        nudge,
+      });
+
+      // Speak the briefing
+      await ttsService.speakText(briefingText);
+      setPlaybackState('playing');
+
+      // Set up a check for when playback completes
+      const checkPlayback = setInterval(async () => {
+        const isPlaying = await ttsService.isPlaying();
+        if (!isPlaying) {
+          setPlaybackState('idle');
+          clearInterval(checkPlayback);
+        }
+      }, 500);
+
+      // Cleanup interval after reasonable max duration (60 seconds)
+      setTimeout(() => {
+        clearInterval(checkPlayback);
+        setPlaybackState('idle');
+      }, 60000);
+
+    } catch (error) {
+      console.error('Failed to play briefing:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to play briefing');
+      setPlaybackState('error');
+      setTimeout(() => {
+        setPlaybackState('idle');
+        setErrorMessage(null);
+      }, 3000);
+    }
+  }, [playbackState, userName, temperature, location, topPrediction, nudge, isPro]);
+
+  const getPlayButtonText = (): string => {
+    switch (playbackState) {
+      case 'loading':
+        return 'Loading...';
+      case 'playing':
+        return 'Stop Briefing';
+      case 'error':
+        return 'Error';
+      default:
+        return 'Play Briefing';
+    }
+  };
+
+  const getPlayButtonIcon = (): string => {
+    switch (playbackState) {
+      case 'playing':
+        return '\u23F9'; // Stop symbol
+      case 'error':
+        return '\u26A0'; // Warning symbol
+      default:
+        return '\uD83D\uDD0A'; // Speaker symbol
+    }
+  };
+
   return (
-    <View style={styles.card}>
-      {/* Accent bar at top */}
-      <View style={styles.accentBar} />
+    <>
+      <LockedFeatureModal
+        visible={showLockedModal}
+        onClose={() => setShowLockedModal(false)}
+        featureName="Voice Briefings"
+        featureDescription="Listen to personalized daily briefings with AI-generated voice updates."
+      />
+
+      <View style={styles.card}>
+        {/* Accent bar at top */}
+        <View style={styles.accentBar} />
 
       <View style={styles.content}>
         {/* Greeting */}
@@ -87,6 +198,33 @@ export const MorningBriefing: React.FC<MorningBriefingProps> = ({
           <Text style={styles.nudgeText}>{nudge}</Text>
         </View>
 
+        {/* Play Briefing Button */}
+        <TouchableOpacity
+          style={[
+            styles.playButton,
+            playbackState === 'playing' && styles.playButtonActive,
+            playbackState === 'error' && styles.playButtonError,
+            playbackState === 'loading' && styles.playButtonLoading,
+          ]}
+          onPress={handlePlayBriefing}
+          activeOpacity={0.7}
+          disabled={playbackState === 'loading'}
+        >
+          {playbackState === 'loading' ? (
+            <ActivityIndicator size="small" color={theme.colors.white} style={styles.playButtonLoader} />
+          ) : !isPro ? (
+            <Ionicons name="lock-closed" size={16} color={theme.colors.white} style={styles.playButtonIcon} />
+          ) : (
+            <Text style={styles.playButtonIcon}>{getPlayButtonIcon()}</Text>
+          )}
+          <Text style={styles.playButtonText}>{!isPro ? 'Play Briefing (Pro)' : getPlayButtonText()}</Text>
+        </TouchableOpacity>
+
+        {/* Error Message */}
+        {errorMessage && (
+          <Text style={styles.errorText}>{errorMessage}</Text>
+        )}
+
         {/* View Full Briefing Link */}
         <TouchableOpacity
           style={styles.linkContainer}
@@ -98,6 +236,7 @@ export const MorningBriefing: React.FC<MorningBriefingProps> = ({
         </TouchableOpacity>
       </View>
     </View>
+    </>
   );
 };
 
@@ -177,6 +316,43 @@ const styles = StyleSheet.create({
     ...theme.typography.bodySmall,
     color: theme.colors.deepTeal,
     flex: 1,
+  },
+  playButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.deepTeal,
+    borderRadius: theme.borderRadius.md,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
+  },
+  playButtonActive: {
+    backgroundColor: theme.colors.hotCoral,
+  },
+  playButtonError: {
+    backgroundColor: theme.colors.midOrange,
+  },
+  playButtonLoading: {
+    backgroundColor: theme.colors.textSecondary,
+  },
+  playButtonIcon: {
+    fontSize: 18,
+    marginRight: theme.spacing.sm,
+  },
+  playButtonText: {
+    ...theme.typography.body,
+    color: theme.colors.white,
+    fontWeight: '600',
+  },
+  playButtonLoader: {
+    marginRight: theme.spacing.sm,
+  },
+  errorText: {
+    ...theme.typography.small,
+    color: theme.colors.hotCoral,
+    textAlign: 'center',
+    marginBottom: theme.spacing.sm,
   },
   linkContainer: {
     flexDirection: 'row',

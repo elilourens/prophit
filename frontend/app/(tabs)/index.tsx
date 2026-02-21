@@ -4,6 +4,8 @@ import { StatusBar } from 'expo-status-bar';
 import { WeatherHeader } from '../../components/WeatherHeader';
 import { MorningBriefing } from '../../components/MorningBriefing';
 import { PredictionCard, Prediction } from '../../components/PredictionCard';
+import { TalkToProphit } from '../../components/TalkToProphit';
+import { UpgradeBanner } from '../../components/UpgradeBanner';
 import { theme } from '../../components/theme';
 
 // Mock data for predictions
@@ -87,6 +89,12 @@ export default function HomeScreen() {
           nudge="You usually spend more on Fridays"
           onViewFullBriefing={handleViewFullBriefing}
         />
+
+        {/* Talk to the Prophit - AI Chat Button */}
+        <TalkToProphit />
+
+        {/* Upgrade Banner for non-Pro users */}
+        <UpgradeBanner />
 
         {/* Section Title */}
         <View style={styles.sectionHeader}>

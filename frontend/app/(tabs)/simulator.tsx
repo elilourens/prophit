@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
 import { theme } from '../../components/theme';
+import { usePro } from '../../contexts/ProContext';
+import { LockedFeatureModal, LockBadge, ProBadge } from '../../components/LockedFeatureModal';
 
 /**
  * Scenario Simulator Screen
@@ -126,6 +128,9 @@ const SliderRow: React.FC<SliderRowProps> = ({
 };
 
 export default function SimulatorScreen() {
+  const { isPro } = usePro();
+  const [showLockedModal, setShowLockedModal] = useState(false);
+
   // Scenario 1: Quit Job
   const [savings, setSavings] = useState(15000);
   const [monthlyExpenses, setMonthlyExpenses] = useState(2500);
@@ -145,8 +150,23 @@ export default function SimulatorScreen() {
   const monthlyRentDifference = currentRent - newRent;
   const yearlyRentImpact = monthlyRentDifference * 12;
 
+  // Show locked modal if not Pro
+  React.useEffect(() => {
+    if (!isPro) {
+      const timer = setTimeout(() => setShowLockedModal(true), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isPro]);
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <LockedFeatureModal
+        visible={showLockedModal && !isPro}
+        onClose={() => setShowLockedModal(false)}
+        featureName="Scenario Simulator"
+        featureDescription="Run unlimited 'What If' scenarios to plan your financial future with confidence."
+      />
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -154,7 +174,10 @@ export default function SimulatorScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>What If...</Text>
+          <View style={styles.headerRow}>
+            <Text style={styles.title}>What If...</Text>
+            {!isPro && <ProBadge style={styles.proBadge} />}
+          </View>
           <Text style={styles.subtitle}>Explore financial scenarios</Text>
         </View>
 
@@ -269,10 +292,18 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: theme.spacing.lg,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
   title: {
     fontSize: 32,
     fontWeight: '700',
     color: theme.colors.deepNavy,
+    marginBottom: theme.spacing.xs,
+  },
+  proBadge: {
     marginBottom: theme.spacing.xs,
   },
   subtitle: {

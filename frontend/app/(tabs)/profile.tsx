@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { theme } from '../../components/theme';
+import { usePro } from '../../contexts/ProContext';
+import { LockedFeatureModal, ProBadge } from '../../components/LockedFeatureModal';
 
 /**
  * Weekly Recap Screen (Profile Tab)
@@ -157,6 +159,9 @@ const InsightCard: React.FC<InsightCardProps> = ({ insight }) => {
 };
 
 export default function ProfileScreen() {
+  const { isPro } = usePro();
+  const [showLockedModal, setShowLockedModal] = useState(false);
+
   // Hardcoded data for weekly recap
   const accuracyPercentage = 78;
   const predictedSpend = 485;
@@ -171,8 +176,23 @@ export default function ProfileScreen() {
   const aiInsight =
     'Your spending was 6% higher than predicted. Rain on Thursday led to 2 unexpected Uber rides.';
 
+  // Show locked modal if not Pro
+  useEffect(() => {
+    if (!isPro) {
+      const timer = setTimeout(() => setShowLockedModal(true), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isPro]);
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <LockedFeatureModal
+        visible={showLockedModal && !isPro}
+        onClose={() => setShowLockedModal(false)}
+        featureName="Weekly Recap"
+        featureDescription="Get detailed insights on your prediction accuracy and spending patterns every week."
+      />
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -180,7 +200,10 @@ export default function ProfileScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Weekly Recap</Text>
+          <View style={styles.headerRow}>
+            <Text style={styles.title}>Weekly Recap</Text>
+            {!isPro && <ProBadge style={styles.proBadge} />}
+          </View>
           <Text style={styles.subtitle}>Feb 14 - Feb 21, 2026</Text>
         </View>
 
@@ -226,10 +249,18 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: theme.spacing.lg,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
   title: {
     fontSize: 32,
     fontWeight: '700',
     color: theme.colors.deepNavy,
+    marginBottom: theme.spacing.xs,
+  },
+  proBadge: {
     marginBottom: theme.spacing.xs,
   },
   subtitle: {
