@@ -1,3 +1,6 @@
+// Crypto polyfill - MUST be before @solana/web3.js
+import 'react-native-get-random-values';
+
 import {
   Connection,
   PublicKey,
