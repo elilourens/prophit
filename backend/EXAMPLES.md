@@ -36,7 +36,16 @@ curl -X POST "http://localhost:8000/transactions/upload?user_id=user123" \
   -F "file=@examples/transactions_sample.json"
 ```
 
-4. **Run summarization (with as_of for historical data):**
+4. **Upload Open Banking JSON:**
+```bash
+curl -X POST "http://localhost:8000/transactions/upload/openbanking?user_id=user123" \
+  -H "Content-Type: application/json" \
+  --data-binary "@data/john.json"
+```
+
+**Note:** Open Banking format supports multiple accounts in a single upload. Transactions are automatically normalized and deduplicated.
+
+5. **Run summarization (with as_of for historical data):**
 ```bash
 curl -X POST "http://localhost:8000/summaries/run" \
   -H "Content-Type: application/json" \
@@ -54,7 +63,7 @@ curl -X POST "http://localhost:8000/summaries/run" \
 
 **Note:** The `as_of` parameter allows analyzing historical data. Without it, the window is relative to current time. With `as_of="2024-01-31T00:00:00Z"` and `window_days=30`, the system analyzes transactions from 2024-01-01 to 2024-01-31.
 
-4. **Get latest summaries:**
+6. **Get latest summaries:**
 ```bash
 curl "http://localhost:8000/summaries/latest?user_id=user123"
 ```
@@ -83,16 +92,27 @@ Then use real model IDs in the request:
 
 ```python
 import requests
+import json
 
 BASE_URL = "http://localhost:8000"
 USER_ID = "user123"
 
-# Upload transactions
+# Upload transactions (CSV/JSON)
 with open("examples/transactions_sample.json", "rb") as f:
     response = requests.post(
         f"{BASE_URL}/transactions/upload",
         params={"user_id": USER_ID},
         files={"file": ("transactions.json", f, "application/json")}
+    )
+    print(response.json())
+
+# Upload Open Banking JSON
+with open("data/john.json", "r") as f:
+    ob_data = json.load(f)
+    response = requests.post(
+        f"{BASE_URL}/transactions/upload/openbanking",
+        params={"user_id": USER_ID},
+        json=ob_data
     )
     print(response.json())
 

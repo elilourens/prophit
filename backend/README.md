@@ -134,6 +134,53 @@ curl -X POST "http://localhost:8000/transactions/upload?user_id=user123" \
 }
 ```
 
+### 1b. Upload Open Banking JSON
+
+**POST** `/transactions/upload/openbanking`
+
+Upload transactions from Open Banking JSON export format.
+
+**Query Parameters:**
+- `user_id` (required): User identifier
+
+**Request Body:**
+- Open Banking JSON export with `statements` array
+- Each statement contains `account`, `balance` (optional), and `transactions` array
+- Each transaction must include: `timestamp`, `description`, `amount`, `currency`
+- Optional fields: `transaction_id`, `transaction_category`, `running_balance`, `meta`
+
+**Transaction Normalization:**
+- `id`: Uses `transaction_id` or `normalised_provider_transaction_id` if available
+- `timestamp`: Parsed from ISO8601 (supports 'Z' suffix)
+- `amount`: Used as-is (negative for debit, positive for credit)
+- `currency`: Transaction currency
+- `description`: Transaction description
+- `category`: `transaction_category` → `meta.provider_transaction_category` → "Other"
+- `balance_after`: From `running_balance.amount` if present
+
+**Example (curl):**
+```bash
+curl -X POST "http://localhost:8000/transactions/upload/openbanking?user_id=user123" \
+  -H "Content-Type: application/json" \
+  --data-binary "@data/john.json"
+```
+
+**Response:**
+```json
+{
+  "user_id": "user123",
+  "transaction_count": 437,
+  "date_range_start": "2024-01-01T00:00:00Z",
+  "date_range_end": "2024-12-31T23:59:59Z",
+  "accounts_count": 5,
+  "message": "Successfully uploaded 437 transactions from 5 account(s)"
+}
+```
+
+**Validation:**
+- Returns 422 with detailed error messages if required fields are missing or invalid
+- Duplicate transactions (by `transaction_id`) are automatically deduplicated within the upload batch
+
 ### 2. Run Summarization
 
 **POST** `/summaries/run`

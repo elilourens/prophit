@@ -11,10 +11,12 @@ from app.models.summary import (
     SummaryRunRequest,
     SummaryRunResponse,
     UploadResponse,
+    OpenBankingUploadResponse,
     JudgeOutput,
     SamplingStats,
     DebugInfo,
 )
+from app.models.openbanking import OpenBankingExport, OBTransaction
 from app.storage.database import get_db
 from app.services.sampling import TransactionSampler
 from app.services.features import FeatureExtractor
@@ -199,6 +201,134 @@ async def upload_transactions(
         raise HTTPException(
             status_code=500,
             detail=f"Error processing file: {str(e)}"
+        )
+
+
+def normalize_openbanking_transaction(
+    ob_tx: OBTransaction,
+    user_id: str,
+) -> TransactionCreate:
+    """
+    Normalize an Open Banking transaction to our internal Transaction model.
+    
+    Args:
+        ob_tx: Open Banking transaction
+        user_id: User identifier
+        
+    Returns:
+        TransactionCreate instance
+    """
+    # Determine transaction ID
+    tx_id = (
+        ob_tx.transaction_id
+        or ob_tx.normalised_provider_transaction_id
+        or ob_tx.provider_transaction_id
+    )
+    
+    # Parse timestamp
+    timestamp = parse_timestamp(ob_tx.timestamp)
+    
+    # Determine category
+    category = (
+        ob_tx.transaction_category
+        or (ob_tx.meta.get("provider_transaction_category") if ob_tx.meta else None)
+        or "Other"
+    )
+    
+    # Get balance_after from running_balance
+    balance_after = None
+    if ob_tx.running_balance:
+        balance_after = ob_tx.running_balance.amount
+    
+    return TransactionCreate(
+        id=tx_id,
+        user_id=user_id,
+        timestamp=timestamp,
+        amount=ob_tx.amount,
+        currency=ob_tx.currency,
+        description=ob_tx.description,
+        category=category,
+        balance_after=balance_after,
+    )
+
+
+@app.post("/transactions/upload/openbanking", response_model=OpenBankingUploadResponse)
+async def upload_openbanking_transactions(
+    export: OpenBankingExport,
+    user_id: str = Query(..., description="User identifier"),
+):
+    """
+    Upload transactions from Open Banking JSON export.
+    
+    Accepts Open Banking format with statements containing accounts and transactions.
+    Validates structure and normalizes transactions to internal format.
+    
+    Query Parameters:
+    - user_id (required): User identifier
+    
+    Request Body:
+    - Open Banking export JSON with statements array
+    """
+    transaction_store, _ = get_db()
+    
+    try:
+        # Collect all transactions from all statements
+        all_transactions = []
+        seen_transaction_ids = set()
+        
+        for statement in export.statements:
+            for ob_tx in statement.transactions:
+                # Deduplicate by transaction_id
+                tx_id = (
+                    ob_tx.transaction_id
+                    or ob_tx.normalised_provider_transaction_id
+                    or ob_tx.provider_transaction_id
+                )
+                
+                if tx_id and tx_id in seen_transaction_ids:
+                    continue  # Skip duplicates
+                
+                if tx_id:
+                    seen_transaction_ids.add(tx_id)
+                
+                # Normalize to our Transaction model
+                tx = normalize_openbanking_transaction(ob_tx, user_id)
+                all_transactions.append(tx)
+        
+        if not all_transactions:
+            raise HTTPException(
+                status_code=400,
+                detail="No transactions found in Open Banking export"
+            )
+        
+        # Store transactions
+        count = transaction_store.add_transactions(all_transactions)
+        
+        # Get date range
+        stats = transaction_store.get_transaction_stats(user_id)
+        
+        # Count unique accounts
+        accounts_count = len(export.statements)
+        
+        message = f"Successfully uploaded {count} transactions from {accounts_count} account(s)"
+        
+        return OpenBankingUploadResponse(
+            user_id=user_id,
+            transaction_count=count,
+            date_range_start=stats.get("date_range_start"),
+            date_range_end=stats.get("date_range_end"),
+            accounts_count=accounts_count,
+            message=message,
+        )
+    
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        # Catch any unexpected exceptions and return proper 500
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing Open Banking export: {str(e)}"
         )
 
 

@@ -92,3 +92,14 @@ class UploadResponse(BaseModel):
     date_range_start: Optional[datetime] = None
     date_range_end: Optional[datetime] = None
     message: str
+
+
+class OpenBankingUploadResponse(BaseModel):
+    """Response from Open Banking upload."""
+    
+    user_id: str
+    transaction_count: int
+    date_range_start: Optional[datetime] = None
+    date_range_end: Optional[datetime] = None
+    accounts_count: int = Field(..., description="Number of accounts in the upload")
+    message: str
