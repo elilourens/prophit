@@ -1,0 +1,122 @@
+[
+  {
+    "timestamp": "2024-01-01T08:30:00Z",
+    "amount": -5.50,
+    "currency": "USD",
+    "description": "STARBUCKS #1234",
+    "category": "Food & Dining",
+    "balance_after": 1250.50
+  },
+  {
+    "timestamp": "2024-01-01T12:15:00Z",
+    "amount": -45.99,
+    "currency": "USD",
+    "description": "AMAZON.COM",
+    "category": "Shopping",
+    "balance_after": 1204.51
+  },
+  {
+    "timestamp": "2024-01-02T09:00:00Z",
+    "amount": -120.00,
+    "currency": "USD",
+    "description": "WHOLE FOODS MARKET",
+    "category": "Groceries",
+    "balance_after": 1084.51
+  },
+  {
+    "timestamp": "2024-01-02T18:30:00Z",
+    "amount": -25.00,
+    "currency": "USD",
+    "description": "UBER TRIP",
+    "category": "Transportation",
+    "balance_after": 1059.51
+  },
+  {
+    "timestamp": "2024-01-03T10:00:00Z",
+    "amount": 3000.00,
+    "currency": "USD",
+    "description": "SALARY DEPOSIT",
+    "category": "Income",
+    "balance_after": 4059.51
+  },
+  {
+    "timestamp": "2024-01-03T14:20:00Z",
+    "amount": -150.00,
+    "currency": "USD",
+    "description": "ELECTRIC BILL",
+    "category": "Utilities",
+    "balance_after": 3909.51
+  },
+  {
+    "timestamp": "2024-01-04T07:45:00Z",
+    "amount": -8.75,
+    "currency": "USD",
+    "description": "DUNKIN DONUTS",
+    "category": "Food & Dining",
+    "balance_after": 3900.76
+  },
+  {
+    "timestamp": "2024-01-04T19:00:00Z",
+    "amount": -75.00,
+    "currency": "USD",
+    "description": "NETFLIX SUBSCRIPTION",
+    "category": "Entertainment",
+    "balance_after": 3825.76
+  },
+  {
+    "timestamp": "2024-01-05T11:30:00Z",
+    "amount": -200.00,
+    "currency": "USD",
+    "description": "GAS STATION",
+    "category": "Transportation",
+    "balance_after": 3625.76
+  },
+  {
+    "timestamp": "2024-01-06T13:00:00Z",
+    "amount": -89.99,
+    "currency": "USD",
+    "description": "APPLE STORE",
+    "category": "Shopping",
+    "balance_after": 3535.77
+  },
+  {
+    "timestamp": "2024-01-07T09:15:00Z",
+    "amount": -6.25,
+    "currency": "USD",
+    "description": "COFFEE SHOP",
+    "category": "Food & Dining",
+    "balance_after": 3529.52
+  },
+  {
+    "timestamp": "2024-01-08T16:45:00Z",
+    "amount": -500.00,
+    "currency": "USD",
+    "description": "RENT PAYMENT",
+    "category": "Housing",
+    "balance_after": 3029.52
+  },
+  {
+    "timestamp": "2024-01-09T10:00:00Z",
+    "amount": -15.50,
+    "currency": "USD",
+    "description": "LUNCH RESTAURANT",
+    "category": "Food & Dining",
+    "balance_after": 3014.02
+  },
+  {
+    "timestamp": "2024-01-10T08:00:00Z",
+    "amount": -4.99,
+    "currency": "USD",
+    "description": "SPOTIFY PREMIUM",
+    "category": "Entertainment",
+    "balance_after": 3009.03
+  },
+  {
+    "timestamp": "2024-01-11T12:00:00Z",
+    "amount": -95.00,
+    "currency": "USD",
+    "description": "PHARMACY",
+    "category": "Healthcare",
+    "balance_after": 2914.03
+  }
+]
