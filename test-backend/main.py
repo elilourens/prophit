@@ -101,6 +101,204 @@ def enrich_transactions_with_weekday(data: dict) -> dict:
     return data
 
 
+# ---------------------------------------------------------------------------
+# Financial summary / income runway — account-type-aware analysis
+# ---------------------------------------------------------------------------
+
+# Payment-like descriptions that must NOT be counted as income (repayments on credit).
+PAYMENT_LIKE_DESCRIPTIONS = frozenset(
+    s.strip().upper()
+    for s in (
+        "DIRECT DEBIT PAYMENT",
+        "FASTER PAYMENT RECEIVED",
+        "PAYMENT RECEIVED",
+        "BANK TRANSFER",
+        "STANDING ORDER",
+        "DD PAYMENT",
+        "CARD PAYMENT",
+    )
+)
+
+
+def is_credit_account(statement: dict) -> bool:
+    """Return True if this statement is for a credit account (balance is liability, not savings)."""
+    account = statement.get("account") or {}
+    at = (account.get("account_type") or statement.get("account_type") or "").upper()
+    return at == "CREDIT"
+
+
+def _description_looks_like_payment(description: str, transaction_category: str) -> bool:
+    """True if this transaction should be classified as payment/repayment, not income."""
+    if (transaction_category or "").upper() == "PAYMENT":
+        return True
+    if not description:
+        return False
+    desc_upper = (description or "").strip().upper()
+    if desc_upper in PAYMENT_LIKE_DESCRIPTIONS:
+        return True
+    if "PAYMENT" in desc_upper and ("RECEIVED" in desc_upper or "DEBIT" in desc_upper):
+        return True
+    return False
+
+
+def classify_transaction(txn: dict, account_type: str) -> str:
+    """
+    Classify a transaction as 'spend', 'repayment', 'income', or 'unknown'.
+    - CREDIT account: DEBIT = spend; CREDIT with PAYMENT category/description = repayment; CREDIT and not PAYMENT = income (e.g. refund).
+    - CURRENT (or other): DEBIT = spend; CREDIT and not PAYMENT = income; CREDIT with PAYMENT = repayment (e.g. transfer).
+    """
+    txn_type = (txn.get("transaction_type") or "").upper()
+    category = (txn.get("transaction_category") or "").upper()
+    description = (txn.get("description") or "").strip()
+
+    if txn_type == "DEBIT":
+        return "spend"
+    if txn_type != "CREDIT":
+        return "unknown"
+
+    is_payment = _description_looks_like_payment(description, category)
+    if account_type == "CREDIT":
+        return "repayment" if is_payment else "income"
+    # CURRENT or other: only treat as income if explicitly not a payment
+    if is_payment:
+        return "repayment"
+    return "income"
+
+
+def _parse_balance_current(statement: dict):
+    """Extract current balance from statement. Supports balance.current or balance[0].current."""
+    balance = statement.get("balance")
+    if balance is None:
+        return None
+    if isinstance(balance, dict):
+        return balance.get("current")
+    if isinstance(balance, list) and balance:
+        first = balance[0]
+        if isinstance(first, dict):
+            return first.get("current")
+    return None
+
+
+def _txn_date(txn: dict):
+    """Parse transaction timestamp to date, or None."""
+    ts = txn.get("timestamp") or txn.get("date")
+    if not ts:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+        return dt.date()
+    except (ValueError, TypeError):
+        return None
+
+
+def _last_n_days(txns: list, days: int):
+    """Filter transactions to those in the last `days` calendar days from the latest txn date."""
+    if not txns:
+        return []
+    dates = [_txn_date(t) for t in txns]
+    valid = [d for d in dates if d is not None]
+    if not valid:
+        return txns
+    cutoff = max(valid) - timedelta(days=days)
+    return [t for t in txns if _txn_date(t) and _txn_date(t) >= cutoff]
+
+
+def _recurring_merchants(txns: list, within_days: int = 90) -> list:
+    """Same description 2+ times in different calendar months (within last within_days)."""
+    recent = _last_n_days(txns, within_days)
+    by_desc_month = {}
+    for t in recent:
+        d = _txn_date(t)
+        if not d:
+            continue
+        desc = (t.get("description") or "").strip() or "(no description)"
+        key = (desc, d.year, d.month)
+        by_desc_month[key] = by_desc_month.get(key, 0) + 1
+    # Descriptions that appear in at least 2 different months
+    by_desc = {}
+    for (desc, y, m), count in by_desc_month.items():
+        by_desc[desc] = by_desc.get(desc, set())
+        by_desc[desc].add((y, m))
+    return [desc for desc, months in by_desc.items() if len(months) >= 2]
+
+
+def _high_frequency_merchants(txns: list, within_days: int = 30) -> list:
+    """Same description 2+ times in last 30 days."""
+    recent = _last_n_days(txns, within_days)
+    by_desc = {}
+    for t in recent:
+        desc = (t.get("description") or "").strip() or "(no description)"
+        by_desc[desc] = by_desc.get(desc, 0) + 1
+    return [desc for desc, count in by_desc.items() if count >= 2]
+
+
+def build_financial_context(data: dict) -> list[dict]:
+    """
+    Build per-statement financial context: account_type, balance, spend, repayments, true_income,
+    net_cash_flow, recurring/high-frequency merchants. Only derived from data; no heuristics.
+    """
+    result = []
+    for statement in data.get("statements", []):
+        account_type = "CREDIT" if is_credit_account(statement) else "CURRENT"
+        balance_current = _parse_balance_current(statement)
+        txns = statement.get("transactions", [])
+        last_30 = _last_n_days(txns, 30)
+
+        spend_30 = 0.0
+        repayments_30 = 0.0
+        true_income_30 = 0.0
+
+        for t in last_30:
+            amt = float(t.get("amount") or 0)
+            txn_type = (t.get("transaction_type") or "").upper()
+            if txn_type == "DEBIT":
+                spend_30 += abs(amt)
+            elif txn_type == "CREDIT":
+                kind = classify_transaction(t, account_type)
+                if kind == "repayment":
+                    repayments_30 += abs(amt)
+                elif kind == "income":
+                    true_income_30 += abs(amt)
+
+        if account_type == "CREDIT":
+            net_cash_flow_30 = repayments_30 - spend_30
+        else:
+            net_cash_flow_30 = true_income_30 - spend_30
+
+        recurring = _recurring_merchants(txns, 90)
+        high_freq = _high_frequency_merchants(txns, 30)
+        repayments_lt_spend = account_type == "CREDIT" and repayments_30 < spend_30
+
+        result.append({
+            "account_type": account_type,
+            "balance_current": balance_current,
+            "spend_30d": round(spend_30, 2),
+            "repayments_30d": round(repayments_30, 2),
+            "true_income_30d": round(true_income_30, 2),
+            "net_cash_flow_30d": round(net_cash_flow_30, 2),
+            "recurring_merchants": recurring[:20],
+            "high_frequency_merchants": high_freq[:20],
+            "repayments_lt_spend": repayments_lt_spend,
+        })
+    return result
+
+
+def _validate_credit_output(text: str) -> str:
+    """Remove or rewrite unsupported claims when output is for a CREDIT account."""
+    if not text:
+        return text
+    lower = text.lower()
+    out = text
+    if "months without income" in lower or "runway" in lower:
+        out = out.replace("months without income", "N/A (credit card data)")
+        out = out.replace("Months without income", "N/A (credit card data)")
+        out = out.replace("runway", "runway (not applicable for credit cards)")
+    if "savings" in lower and "outstanding" not in lower and "debt" not in lower:
+        out = out.replace("savings", "outstanding balance (debt — not savings)")
+        out = out.replace("Savings", "Outstanding balance (debt — not savings)")
+    return out
+
+
 def _extract_pdf(raw_bytes: bytes) -> str:
     """Extract all text from a PDF file."""
     text_parts = []
@@ -412,9 +610,8 @@ Tips:"""
 @app.post("/financial-summary", tags=["budget"])
 async def financial_summary_from_file(file: UploadFile = File(...)):
     """
-    Generate a financial summary (savings, rent, groceries, etc.) from transaction data.
-
-    Upload a JSON, CSV, or PDF file; the LLM extracts figures suitable for the income-runway flow.
+    Generate a financial summary from transaction data. Account-type aware:
+    CREDIT = spend/repayments/outstanding balance only (no runway). CURRENT = summary suitable for runway.
     """
     raw = await file.read()
     try:
@@ -426,33 +623,101 @@ async def financial_summary_from_file(file: UploadFile = File(...)):
     return {"summary": summary}
 
 
+def _build_structured_financial_payload(contexts: list[dict]) -> str:
+    """Turn build_financial_context output into a clear text payload for the LLM."""
+    lines = []
+    for i, ctx in enumerate(contexts):
+        acc = ctx["account_type"]
+        lines.append(f"Account {i + 1} — Type: {acc}")
+        if ctx.get("balance_current") is not None:
+            lines.append(f"  balance_current: {ctx['balance_current']} (interpret as {'outstanding debt' if acc == 'CREDIT' else 'available funds'})")
+        lines.append(f"  spend_30d: {ctx['spend_30d']}, repayments_30d: {ctx['repayments_30d']}, true_income_30d: {ctx['true_income_30d']}")
+        lines.append(f"  net_cash_flow_30d: {ctx['net_cash_flow_30d']}")
+        if acc == "CREDIT":
+            lines.append(f"  repayments_lt_spend: {ctx['repayments_lt_spend']}")
+            if ctx.get("recurring_merchants"):
+                lines.append(f"  recurring_merchants: {ctx['recurring_merchants'][:10]}")
+            if ctx.get("high_frequency_merchants"):
+                lines.append(f"  high_frequency_merchants: {ctx['high_frequency_merchants'][:10]}")
+        lines.append("")
+    return "\n".join(lines)
+
+
 async def generate_financial_summary(transaction_data: str) -> str:
-    """Use OpenAI to extract a financial summary from transaction data for income-runway use."""
+    """
+    Generate account-type-aware financial summary. When JSON has statements/accounts,
+    use deterministic structured aggregation (analysis.summary) for explicit, reproducible output.
+    Otherwise fall back to LLM for raw/PDF/CSV text.
+    """
+    try:
+        data = json.loads(transaction_data)
+    except (json.JSONDecodeError, TypeError):
+        data = None
+
+    if data and (data.get("statements") or data.get("accounts")):
+        from analysis.summary import build_account_summaries, format_summary_for_display
+        summaries = build_account_summaries(data)
+        if summaries:
+            return format_summary_for_display(summaries)
+        # Empty accounts list: fall through to LLM
+    else:
+        data = None
+
+    # Non-JSON or no statements/accounts: use LLM (existing behaviour)
     if not OPENAI_API_KEY:
-        return "[SKIPPED] OPENAI_API_KEY not set"
+        return "[SKIPPED] OPENAI_API_KEY not set. Upload JSON with statements/accounts for deterministic summary."
 
-    prompt = """Analyze this transaction/banking data and produce a short financial summary that could be used to estimate "how long I can go without income."
+    has_credit = False
+    if data and data.get("statements"):
+        contexts = build_financial_context(data)
+        has_credit = any(c["account_type"] == "CREDIT" for c in contexts)
+        structured_payload = _build_structured_financial_payload(contexts)
+    else:
+        structured_payload = None
 
-Include, in plain text and in 4–8 short lines:
-- Estimated savings or current balance (if visible in the data; otherwise say "savings/balance not clear from data").
-- Monthly rent or mortgage (recurring housing).
-- Monthly groceries and food.
-- Other recurring monthly expenses (subscriptions, utilities, transport, etc.) with a brief total or breakdown.
-- Any recurring income (salary, side income) if visible.
+    if structured_payload:
+        system_credit = (
+            "This is a credit card account. balance.current is outstanding debt, not savings. "
+            "Payments (e.g. DIRECT DEBIT PAYMENT, FASTER PAYMENT RECEIVED) are repayments, not income. "
+            "Do NOT compute 'months without income'. Do NOT label the balance as available funds or savings."
+        )
+        full_content = f"""Use ONLY the following structured analysis. Do not infer numbers not given.
 
-Write it as a single block of text that someone could paste into a "financial summary" field. No bullet symbols needed if you use line breaks. Be concise and use approximate numbers where exact ones aren't clear."""
+{structured_payload}
 
-    full_content = f"{prompt}\n\nTransaction data:\n{transaction_data[:30000]}"
+Instructions:
+- For each CREDIT account: Report total spend (last 30 days), total repayments (last 30 days), net card balance change, recurring subscriptions if listed, high-frequency merchants if listed. Flag if repayments are lower than spending. Do NOT mention "savings", "runway", or "months without income".
+- For each CURRENT account: Report available funds (balance_current), monthly spend, true_income (only CREDIT transactions that are NOT PAYMENT category), net cash flow. You may then say this summary can be used for runway estimation.
+
+Write a single block of text, 4–8 short lines per account. Be precise; only state what is in the data.
+
+CREDIT account rule: {system_credit}"""
+    else:
+        full_content = f"""Analyze this transaction/banking data and produce a short financial summary.
+
+CRITICAL: If the data appears to be from a credit card (e.g. balance as liability, payment credits):
+- Do NOT treat balance as savings or available cash.
+- Do NOT estimate "months without income" or runway.
+- Treat payment-like credits (e.g. DIRECT DEBIT PAYMENT, FASTER PAYMENT RECEIVED) as card repayments, not income.
+If the data is from a current/savings account with clear income and expenses, you may summarize savings and expenses for runway use.
+
+Write 4–8 short lines. Only state what can be derived from the data; no fabricated estimates.
+
+Data:
+{transaction_data[:25000]}"""
 
     try:
         client = OpenAI(api_key=OPENAI_API_KEY)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": full_content}],
-            max_tokens=400,
-            temperature=0.3,
+            max_tokens=500,
+            temperature=0.2,
         )
-        return response.choices[0].message.content
+        out = response.choices[0].message.content
+        if has_credit:
+            out = _validate_credit_output(out)
+        return out
     except Exception as e:
         return f"[ERROR] Financial summary failed: {e}"
 
@@ -460,9 +725,8 @@ Write it as a single block of text that someone could paste into a "financial su
 @app.post("/income-runway", tags=["budget"])
 async def income_runway(text: str):
     """
-    Estimate how long the user can go without any new income, based on savings and expenses.
-
-    Pass a financial summary as text (e.g. savings, monthly expenses, other income).
+    Estimate how long the user can go without any new income. Only valid for current/savings accounts
+    with positive cash balance. Credit card summaries must not be used for runway.
     """
     if not text or not text.strip():
         raise HTTPException(status_code=400, detail="Provide a financial summary (savings, expenses) as text")
@@ -471,27 +735,52 @@ async def income_runway(text: str):
     return {"runway": result}
 
 
+def _summary_suggests_credit_card(text: str) -> bool:
+    """Heuristic: summary likely describes credit card data (runway not applicable)."""
+    if not text:
+        return False
+    lower = text.lower()
+    return (
+        "credit card" in lower
+        or "outstanding balance" in lower
+        or "outstanding debt" in lower
+        or ("repayments" in lower and "savings" not in lower and "balance" in lower)
+    )
+
+
 async def get_income_runway(financial_summary: str) -> str:
-    """Use OpenAI to estimate runway (months without income) from a financial summary."""
+    """
+    Estimate runway only when the summary describes current/savings with positive cash.
+    If summary describes credit card debt, do not estimate months without income.
+    """
     if not OPENAI_API_KEY:
         return "[SKIPPED] OPENAI_API_KEY not set"
 
-    prompt = f"""Based on the following financial summary, estimate how long this person can go without any new income (runway). Consider savings, liquid assets, monthly expenses, and any recurring income they mentioned.
+    guardrail = (
+        " If this summary describes credit card debt or outstanding balance as the primary balance, "
+        "do NOT estimate months without income; instead state clearly that runway cannot be estimated from credit card data."
+    )
+    prompt = f"""Based on the following financial summary, estimate how long this person can go without any new income (runway) only if the summary clearly describes liquid savings/current account balance and monthly expenses. Consider only savings, liquid assets, monthly expenses, and recurring income — not credit card balance.{guardrail}
 
 Financial Summary:
 {financial_summary}
 
-Respond in 2-4 short sentences: give the estimated runway (e.g. "About X months" or "Roughly Y months"), and one brief note on what would help extend it or what the main risk is. Be concise."""
+Respond in 2-4 short sentences. If the data is from a credit card or does not support runway, say so and do not give a number of months. Otherwise give estimated runway and one brief note. Be concise."""
 
     try:
         client = OpenAI(api_key=OPENAI_API_KEY)
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=150,
-            temperature=0.5,
+            max_tokens=200,
+            temperature=0.3,
         )
-        return response.choices[0].message.content
+        out = response.choices[0].message.content
+        # Output validation: if summary suggests credit and response still claims runway, rewrite
+        if _summary_suggests_credit_card(financial_summary):
+            if "months without income" in out.lower() or ("month" in out.lower() and "runway" in out.lower()):
+                out = "Runway cannot be estimated from credit card data. The balance shown is outstanding debt, not savings; payments are repayments, not income."
+        return out
     except Exception as e:
         return f"[ERROR] Income runway failed: {e}"
 
