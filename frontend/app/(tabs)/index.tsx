@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, Text, SafeAreaView, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useRouter } from 'expo-router';
 import { WeatherHeader } from '../../components/WeatherHeader';
 import { MorningBriefing } from '../../components/MorningBriefing';
 import { PredictionCard, Prediction } from '../../components/PredictionCard';
@@ -100,6 +101,7 @@ function getDefaultPredictions(): Prediction[] {
 }
 
 export default function HomeScreen() {
+  const router = useRouter();
   const { user } = useArena();
   const { isDataLoaded } = useUserData();
   const [predictions, setPredictions] = useState<Prediction[]>([]);
@@ -157,8 +159,7 @@ export default function HomeScreen() {
   };
 
   const handleViewFullBriefing = () => {
-    // Navigate to full briefing screen
-    console.log('Navigate to full briefing');
+    router.push('/briefing');
   };
 
   return (
