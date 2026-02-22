@@ -9,6 +9,7 @@ export interface Transaction {
   description: string;
   amount: number;
   category: string;
+  timestamp?: string; // ISO 8601 format for precise timing (e.g., "2026-02-22T14:30:00Z")
 }
 
 export interface MonthlySnapshot {

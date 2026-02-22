@@ -19,6 +19,7 @@ export interface SupabaseTransaction {
   description: string;
   amount: number;
   category: string;
+  timestamp: string | null; // Precise transaction time
   created_at: string;
 }
 
@@ -44,6 +45,7 @@ export async function loadTransactionsFromSupabase(userId: string): Promise<Tran
       description: t.description,
       amount: t.amount,
       category: t.category,
+      timestamp: t.timestamp || undefined,
     }));
   } catch (error) {
     console.error('Error in loadTransactionsFromSupabase:', error);
@@ -67,6 +69,7 @@ export async function saveTransactionToSupabase(
         description: transaction.description,
         amount: transaction.amount,
         category: transaction.category || categorizeTransaction(transaction.description),
+        timestamp: transaction.timestamp || new Date().toISOString(),
       });
 
     if (error) {
@@ -102,6 +105,7 @@ export async function saveTransactionsToSupabase(
       description: t.description,
       amount: t.amount,
       category: t.category || categorizeTransaction(t.description),
+      timestamp: t.timestamp || `${t.date}T12:00:00Z`, // Use noon if no timestamp provided
     }));
 
     const { error } = await supabase

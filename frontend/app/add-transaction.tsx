@@ -147,11 +147,16 @@ export default function AddTransactionScreen() {
       // Use selected category or suggested category
       const finalCategory = category || suggestedCategory || 'Other';
 
+      // Create timestamp - use current time with the selected date
+      const now = new Date();
+      const timestamp = `${date}T${now.toISOString().split('T')[1]}`;
+
       await addTransaction({
         date,
         description: description.trim(),
         amount: finalAmount,
         category: finalCategory,
+        timestamp,
       });
 
       // Navigate back

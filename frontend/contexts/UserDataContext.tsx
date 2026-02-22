@@ -40,6 +40,7 @@ interface UserDataContextType {
     description: string;
     amount: number;
     category?: string;
+    timestamp?: string;
   }) => Promise<void>;
   deleteTransaction: (date: string, description: string, amount: number) => Promise<void>;
 }
@@ -182,12 +183,14 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
     description: string;
     amount: number;
     category?: string;
+    timestamp?: string;
   }) => {
     const transaction: Transaction = {
       date: transactionData.date,
       description: transactionData.description,
       amount: transactionData.amount,
       category: transactionData.category || categorizeTransaction(transactionData.description),
+      timestamp: transactionData.timestamp || new Date().toISOString(),
     };
 
     // Add to local storage first
