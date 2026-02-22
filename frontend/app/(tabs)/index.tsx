@@ -10,7 +10,7 @@ import { UpgradeBanner } from '../../components/UpgradeBanner';
 import { theme } from '../../components/theme';
 import { useArena } from '../../contexts/ArenaContext';
 import { useUserData } from '../../contexts/UserDataContext';
-import { getCalendarPredictions, getDemoTransactionData, CalendarPrediction } from '../../services/backendApi';
+import { getWeekAheadPredictions, CalendarPrediction, JudgeOutput } from '../../services/backendApi';
 
 // Weather data for Dublin (could be fetched from a weather API)
 const DUBLIN_WEATHER = {
@@ -19,22 +19,22 @@ const DUBLIN_WEATHER = {
   weatherIcon: 'partlyCloudy' as const,
 };
 
-// Map backend categories to prediction types
-function mapCategoryToType(category: string): 'food' | 'coffee' | 'drinks' | 'transport' | 'shopping' | 'other' {
-  const lowerCategory = category.toLowerCase();
-  if (lowerCategory.includes('lunch') || lowerCategory.includes('dinner') || lowerCategory.includes('food') || lowerCategory.includes('dining')) {
-    return 'food';
-  }
-  if (lowerCategory.includes('coffee') || lowerCategory.includes('cafe')) {
+// Map behavior/category to prediction types
+function mapBehaviorToType(behavior: string): 'food' | 'coffee' | 'drinks' | 'transport' | 'shopping' | 'other' {
+  const lower = behavior.toLowerCase();
+  if (lower.includes('coffee') || lower.includes('cafe')) {
     return 'coffee';
   }
-  if (lowerCategory.includes('drink') || lowerCategory.includes('bar') || lowerCategory.includes('pub')) {
+  if (lower.includes('lunch') || lower.includes('dinner') || lower.includes('food') || lower.includes('dining') || lower.includes('casual')) {
+    return 'food';
+  }
+  if (lower.includes('drink') || lower.includes('bar') || lower.includes('pub') || lower.includes('going out') || lower.includes('evening')) {
     return 'drinks';
   }
-  if (lowerCategory.includes('uber') || lowerCategory.includes('taxi') || lowerCategory.includes('transport') || lowerCategory.includes('bus')) {
+  if (lower.includes('uber') || lower.includes('taxi') || lower.includes('transport') || lower.includes('ride') || lower.includes('hailing')) {
     return 'transport';
   }
-  if (lowerCategory.includes('shop') || lowerCategory.includes('amazon') || lowerCategory.includes('store')) {
+  if (lower.includes('shop') || lower.includes('amazon') || lower.includes('store')) {
     return 'shopping';
   }
   return 'other';
@@ -48,17 +48,18 @@ function convertToPredictions(calendarPredictions: CalendarPrediction[]): Predic
 
   // Get today's predictions
   const today = calendarPredictions[0];
-  if (!today?.predictions) {
+  if (!today?.predictions || today.predictions.length === 0) {
     return getDefaultPredictions();
   }
 
   return today.predictions.slice(0, 4).map((pred, index) => ({
     id: String(index + 1),
-    type: mapCategoryToType(pred.category),
+    type: mapBehaviorToType(pred.description || pred.category),
     title: pred.description || pred.category,
-    probability: Math.round(pred.probability * 100),
-    estimatedMin: Math.floor(pred.amount * 0.8),
-    estimatedMax: Math.ceil(pred.amount * 1.2),
+    probability: pred.probability > 1 ? pred.probability : Math.round(pred.probability * 100), // Handle both 0-1 and 0-100 formats
+    estimatedMin: Math.floor(pred.amount * 0.9),
+    estimatedMax: Math.ceil(pred.amount * 1.1),
+    agreedBy: pred.agreedBy,
   }));
 }
 
@@ -121,25 +122,36 @@ export default function HomeScreen() {
   const fetchPredictions = async () => {
     setIsLoading(true);
     try {
-      // Use user's actual data if available, otherwise use demo data
-      const transactionData = userDataset?.transactions && userDataset.transactions.length > 0
-        ? JSON.stringify({ transactions: userDataset.transactions })
-        : getDemoTransactionData();
-      const result = await getCalendarPredictions(transactionData);
+      // Use user's actual transaction data
+      if (!userDataset?.transactions || userDataset.transactions.length === 0) {
+        console.log('No transactions available, using defaults');
+        const defaults = getDefaultPredictions();
+        setPredictions(defaults);
+        setTopPrediction({
+          title: defaults[0].title,
+          probability: defaults[0].probability,
+        });
+        return;
+      }
+
+      console.log('Fetching week-ahead predictions from backend with', userDataset.transactions.length, 'transactions...');
+      const result = await getWeekAheadPredictions(userDataset.transactions);
 
       if (result.predictions && result.predictions.length > 0) {
+        console.log('Got', result.predictions.length, 'days of predictions from judge');
         const converted = convertToPredictions(result.predictions);
         setPredictions(converted);
 
-        // Set top prediction
+        // Set top prediction (highest probability)
         if (converted.length > 0) {
+          const topPred = [...converted].sort((a, b) => b.probability - a.probability)[0];
           setTopPrediction({
-            title: converted[0].title,
-            probability: converted[0].probability,
+            title: topPred.title,
+            probability: topPred.probability,
           });
         }
       } else {
-        // Fall back to defaults
+        console.log('No predictions from backend, using defaults');
         const defaults = getDefaultPredictions();
         setPredictions(defaults);
         setTopPrediction({
@@ -149,7 +161,6 @@ export default function HomeScreen() {
       }
     } catch (error) {
       console.error('Failed to fetch predictions:', error);
-      // Fall back to defaults
       const defaults = getDefaultPredictions();
       setPredictions(defaults);
       setTopPrediction({

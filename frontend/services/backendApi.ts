@@ -33,8 +33,28 @@ export interface CalendarPrediction {
     probability: number;
     amount: number;
     icon?: string;
+    agreedBy?: string[];
   }[];
   totalExpected: number;
+}
+
+// Judge output format from backend multi-LLM consensus
+export interface JudgePrediction {
+  behavior: string;
+  likelihood: number;
+  avg_spend: number;
+  agreed_by: string[];
+}
+
+export interface JudgeDayPrediction {
+  date: string;
+  day: string;
+  predictions: JudgePrediction[];
+}
+
+export interface JudgeOutput {
+  week_start: string;
+  daily_predictions: JudgeDayPrediction[];
 }
 
 export interface AnalysisResult {
@@ -758,6 +778,114 @@ export function getCalendarPredictions(transactionData: string): Promise<{
     return Promise.resolve(generateLocalPredictions(jsonData));
   }
   return Promise.resolve(generateLocalPredictions(transactionData));
+}
+
+/**
+ * Get week-ahead predictions from backend multi-LLM judge consensus
+ * Calls the /calendar_uploaded endpoint and parses judge_output
+ */
+export async function getWeekAheadPredictions(transactions: Transaction[]): Promise<{
+  predictions: CalendarPrediction[];
+  judgeOutput: JudgeOutput | null;
+}> {
+  try {
+    if (!transactions || transactions.length === 0) {
+      console.log('No transactions for week-ahead predictions');
+      return { predictions: [], judgeOutput: null };
+    }
+
+    // Create a JSON file-like content for the API
+    const jsonContent = JSON.stringify({ transactions });
+    const blob = new Blob([jsonContent], { type: 'application/json' });
+    const formData = new FormData();
+    formData.append('file', blob, 'transactions.json');
+
+    console.log('Calling /calendar_uploaded with', transactions.length, 'transactions...');
+
+    // Call the Gradio API pattern
+    const submitRes = await fetch(`${BASE_URL}/gradio_api/call/calendar_uploaded`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!submitRes.ok) {
+      console.error('Calendar submit failed:', submitRes.status);
+      return { predictions: [], judgeOutput: null };
+    }
+
+    const { event_id } = await submitRes.json();
+    console.log('Got event_id:', event_id);
+
+    // Get the result (SSE stream)
+    const resultRes = await fetch(`${BASE_URL}/gradio_api/call/calendar_uploaded/${event_id}`);
+    const text = await resultRes.text();
+
+    // Parse SSE response - look for data: line after event: complete
+    const lines = text.split('\n');
+    let resultData: any = null;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].startsWith('data: ')) {
+        try {
+          resultData = JSON.parse(lines[i].replace('data: ', ''));
+        } catch (e) {
+          // Not valid JSON, continue
+        }
+      }
+    }
+
+    if (!resultData || !Array.isArray(resultData)) {
+      console.error('Invalid response format');
+      return { predictions: [], judgeOutput: null };
+    }
+
+    // Result format: [calendar_markdown, raw_json_with_judge_output]
+    const rawJson = resultData[1];
+    console.log('Raw JSON preview:', JSON.stringify(rawJson).substring(0, 500));
+
+    // Extract judge_output from the response
+    let judgeOutput: JudgeOutput | null = null;
+    if (rawJson?.judge_output) {
+      // Parse the judge_output which is wrapped in ```json ... ```
+      let judgeStr = rawJson.judge_output;
+      if (judgeStr.startsWith('```json')) {
+        judgeStr = judgeStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+      }
+      try {
+        judgeOutput = JSON.parse(judgeStr);
+        console.log('Parsed judge output:', judgeOutput?.daily_predictions?.length, 'days');
+      } catch (e) {
+        console.error('Failed to parse judge_output:', e);
+      }
+    }
+
+    // Convert judge output to CalendarPrediction format
+    const predictions: CalendarPrediction[] = [];
+    if (judgeOutput?.daily_predictions) {
+      for (const day of judgeOutput.daily_predictions) {
+        const dayPredictions = day.predictions.map(p => ({
+          category: p.behavior,
+          description: p.behavior,
+          probability: p.likelihood / 100,
+          amount: p.avg_spend,
+          agreedBy: p.agreed_by,
+        }));
+
+        const totalExpected = dayPredictions.reduce((sum, p) => sum + (p.amount * p.probability), 0);
+
+        predictions.push({
+          day: day.day,
+          date: day.date,
+          predictions: dayPredictions,
+          totalExpected: Math.round(totalExpected * 100) / 100,
+        });
+      }
+    }
+
+    return { predictions, judgeOutput };
+  } catch (error) {
+    console.error('Error getting week-ahead predictions:', error);
+    return { predictions: [], judgeOutput: null };
+  }
 }
 
 /**
