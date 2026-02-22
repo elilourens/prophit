@@ -13,9 +13,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { theme } from '../components/theme';
 import { useUserData } from '../contexts/UserDataContext';
-import { categorizeTransaction } from '../services/backendApi';
+import { useArena } from '../contexts/ArenaContext';
+import { categorizeTransaction, setUseUploadedData, getCachedUserDataset } from '../services/backendApi';
+import { syncUploadedDataToSupabase } from '../services/transactionSyncService';
+import { showAlert } from '../utils/crossPlatform';
 
 // Common merchants for autocomplete
 const COMMON_MERCHANTS = [
@@ -41,7 +46,8 @@ const CATEGORIES = [
 ];
 
 export default function AddTransactionScreen() {
-  const { addTransaction } = useUserData();
+  const { addTransaction, reloadUserData } = useUserData();
+  const { user } = useArena();
 
   // Form state
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -51,6 +57,61 @@ export default function AddTransactionScreen() {
   const [category, setCategory] = useState('');
   const [showMerchantSuggestions, setShowMerchantSuggestions] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Handle file upload
+  const handleUploadFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'application/json', 'text/csv', 'text/plain'],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets?.[0]) {
+        return;
+      }
+
+      setIsUploading(true);
+      const file = result.assets[0];
+      const isPDF = file.mimeType === 'application/pdf';
+
+      let fileContent: string;
+
+      if (isPDF) {
+        // Read PDF as base64
+        const base64 = await FileSystem.readAsStringAsync(file.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        fileContent = `data:application/pdf;base64,${base64}`;
+      } else {
+        // Read text files directly
+        fileContent = await FileSystem.readAsStringAsync(file.uri);
+      }
+
+      // Parse and merge with existing data
+      const success = await setUseUploadedData(true, fileContent, isPDF ? file.uri : undefined);
+
+      if (success) {
+        // Sync to Supabase (will merge with existing)
+        const parsedDataset = getCachedUserDataset();
+        if (parsedDataset && parsedDataset.transactions.length > 0 && user) {
+          console.log('Syncing', parsedDataset.transactions.length, 'transactions to Supabase...');
+          const syncResult = await syncUploadedDataToSupabase(user.id, parsedDataset.transactions);
+          console.log(`Synced: ${syncResult.added} new, ${syncResult.skipped} duplicates`);
+        }
+        await reloadUserData();
+        showAlert('Success', `Transactions imported and merged with your existing data!`);
+        router.back();
+      } else {
+        showAlert('Upload Failed', 'Could not extract transactions from your file.');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      showAlert('Error', 'Failed to upload file. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   // Auto-categorize based on description
   const suggestedCategory = useMemo(() => {
@@ -132,6 +193,35 @@ export default function AddTransactionScreen() {
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Add Transaction</Text>
             <View style={styles.backButton} />
+          </View>
+
+          {/* Upload File Section */}
+          <TouchableOpacity
+            style={styles.uploadSection}
+            onPress={handleUploadFile}
+            disabled={isUploading}
+          >
+            {isUploading ? (
+              <ActivityIndicator color={theme.colors.deepTeal} />
+            ) : (
+              <>
+                <View style={styles.uploadIconContainer}>
+                  <Ionicons name="cloud-upload-outline" size={28} color={theme.colors.deepTeal} />
+                </View>
+                <View style={styles.uploadTextContainer}>
+                  <Text style={styles.uploadTitle}>Import from File</Text>
+                  <Text style={styles.uploadSubtitle}>PDF, JSON, or CSV - merges with existing data</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={theme.colors.gray} />
+              </>
+            )}
+          </TouchableOpacity>
+
+          {/* Divider */}
+          <View style={styles.dividerContainer}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or add manually</Text>
+            <View style={styles.dividerLine} />
           </View>
 
           {/* Transaction Type Toggle */}
@@ -321,6 +411,52 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.colors.deepNavy,
     textAlign: 'center',
+  },
+  uploadSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+    ...theme.cardShadow,
+  },
+  uploadIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: theme.colors.deepTeal + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: theme.spacing.md,
+  },
+  uploadTextContainer: {
+    flex: 1,
+  },
+  uploadTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.deepNavy,
+  },
+  uploadSubtitle: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: theme.colors.lightGray,
+  },
+  dividerText: {
+    paddingHorizontal: theme.spacing.md,
+    fontSize: 13,
+    color: theme.colors.textSecondary,
   },
   typeToggle: {
     flexDirection: 'row',
