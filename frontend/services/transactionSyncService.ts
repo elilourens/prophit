@@ -3,7 +3,6 @@
  *
  * Syncs transactions between local storage and Supabase.
  * Ensures data persists across devices and sessions.
- * ALSO immediately updates arena spending when transactions are added.
  */
 
 import { supabase } from './supabase';
@@ -12,143 +11,6 @@ import { calculateSummaryFromTransactions, categorizeTransaction } from './trans
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const UPLOADED_DATA_KEY = '@prophit_uploaded_data';
-
-/**
- * Vice category mappings for vice_streak mode elimination check
- */
-const VICE_MAPPINGS: { [viceId: string]: { keywords: string[] } } = {
-  coffee: { keywords: ['starbucks', 'costa', 'coffee', 'cafe', 'latte', 'cappuccino', 'espresso', 'nero', 'pret'] },
-  fast_food: { keywords: ['mcdonald', 'burger king', 'kfc', 'subway', 'five guys', 'wendy', 'taco bell', 'chipotle', 'domino', 'pizza hut', 'papa john', 'nando'] },
-  alcohol: { keywords: ['pub', 'bar', 'beer', 'wine', 'spirits', 'off-licence', 'off license', 'liquor', 'guinness'] },
-  takeaway: { keywords: ['deliveroo', 'just eat', 'uber eats', 'doordash', 'grubhub', 'takeaway'] },
-  shopping: { keywords: ['amazon', 'asos', 'zara', 'h&m', 'primark', 'penneys'] },
-  subscriptions: { keywords: ['netflix', 'spotify', 'disney', 'hulu', 'prime', 'apple music', 'youtube premium'] },
-  gambling: { keywords: ['bet365', 'paddy power', 'william hill', 'betfair', 'casino', 'poker', 'lottery'] },
-  smoking: { keywords: ['cigarette', 'tobacco', 'vape', 'juul', 'smoke shop'] },
-};
-
-/**
- * Check if a transaction matches a vice category
- */
-function matchesVice(description: string, category: string, viceId: string): boolean {
-  const mapping = VICE_MAPPINGS[viceId];
-  if (!mapping) return false;
-  const lower = description.toLowerCase();
-  return mapping.keywords.some(kw => lower.includes(kw));
-}
-
-/**
- * SIMPLE DIRECT UPDATE: After any transaction insert, update arena_members.current_spend
- * This is called IMMEDIATELY after every transaction insert - no background sync needed
- */
-export async function updateArenaSpendingDirectly(userId: string): Promise<void> {
-  try {
-    console.log('Updating arena spending directly for user:', userId);
-
-    // Get all active arenas the user is in
-    const { data: memberships, error: fetchError } = await supabase
-      .from('arena_members')
-      .select(`
-        arena_id,
-        is_eliminated,
-        arenas (
-          id,
-          created_at,
-          status,
-          mode,
-          target_amount,
-          target_category
-        )
-      `)
-      .eq('user_id', userId);
-
-    if (fetchError || !memberships) {
-      console.error('Error fetching memberships:', fetchError);
-      return;
-    }
-
-    // For each active arena, recalculate and update spending
-    for (const membership of memberships) {
-      const arena = (membership as any).arenas;
-      if (!arena || arena.status !== 'active') continue;
-
-      const arenaId = arena.id;
-      const arenaStart = new Date(arena.created_at);
-      const mode = arena.mode;
-      const targetCategory = arena.target_category;
-      const targetAmount = arena.target_amount;
-
-      // Sum all transactions for this user since arena started
-      const { data: transactions, error: txnError } = await supabase
-        .from('transactions')
-        .select('amount, description, category, date')
-        .eq('user_id', userId)
-        .gte('date', arenaStart.toISOString().split('T')[0])
-        .lt('amount', 0); // Only expenses
-
-      if (txnError) {
-        console.error('Error fetching transactions for arena:', txnError);
-        continue;
-      }
-
-      // Calculate total spend (for vice_streak, only count matching transactions)
-      let totalSpend = 0;
-      let isEliminated = membership.is_eliminated || false;
-
-      for (const txn of transactions || []) {
-        const amount = Math.abs(txn.amount);
-
-        if (mode === 'vice_streak' && targetCategory) {
-          // Only count transactions matching the banned vice
-          if (matchesVice(txn.description, txn.category, targetCategory)) {
-            totalSpend += amount;
-            // For vice_streak: ANY matching transaction = eliminated
-            if (!isEliminated) {
-              isEliminated = true;
-              console.log(`User ${userId} eliminated in vice_streak arena ${arenaId} - spent on ${targetCategory}`);
-            }
-          }
-        } else {
-          // Budget guardian / savings sprint: count all expenses
-          totalSpend += amount;
-        }
-      }
-
-      totalSpend = Math.round(totalSpend * 100) / 100;
-      console.log(`Arena ${arenaId}: total spend = €${totalSpend}, eliminated = ${isEliminated}`);
-
-      // Update arena_members directly
-      const updateData: any = {
-        current_spend: totalSpend,
-        last_synced_at: new Date().toISOString(),
-      };
-
-      // Check budget exceeded for budget_guardian mode
-      if (mode === 'budget_guardian' && targetAmount && totalSpend > targetAmount) {
-        updateData.budget_exceeded_at = updateData.budget_exceeded_at || new Date().toISOString();
-      }
-
-      // Set elimination for vice_streak
-      if (mode === 'vice_streak' && isEliminated) {
-        updateData.is_eliminated = true;
-      }
-
-      const { error: updateError } = await supabase
-        .from('arena_members')
-        .update(updateData)
-        .eq('arena_id', arenaId)
-        .eq('user_id', userId);
-
-      if (updateError) {
-        console.error('Error updating arena_members:', updateError);
-      } else {
-        console.log(`Updated arena_members for arena ${arenaId}: €${totalSpend}`);
-      }
-    }
-  } catch (error) {
-    console.error('Error in updateArenaSpendingDirectly:', error);
-  }
-}
 
 export interface SupabaseTransaction {
   id: string;
@@ -193,7 +55,6 @@ export async function loadTransactionsFromSupabase(userId: string): Promise<Tran
 
 /**
  * Save a single transaction to Supabase
- * IMMEDIATELY updates arena spending after insert
  */
 export async function saveTransactionToSupabase(
   userId: string,
@@ -222,10 +83,6 @@ export async function saveTransactionToSupabase(
     }
 
     console.log('Saved transaction to Supabase:', data);
-
-    // IMMEDIATELY update arena spending
-    await updateArenaSpendingDirectly(userId);
-
     return true;
   } catch (error) {
     console.error('Exception in saveTransactionToSupabase:', error);
@@ -235,7 +92,6 @@ export async function saveTransactionToSupabase(
 
 /**
  * Save multiple transactions to Supabase (batch insert)
- * IMMEDIATELY updates arena spending after all inserts
  */
 export async function saveTransactionsToSupabase(
   userId: string,
@@ -281,12 +137,6 @@ export async function saveTransactionsToSupabase(
   }
 
   console.log(`Batch insert complete: ${saved} saved, ${errors} errors`);
-
-  // IMMEDIATELY update arena spending after all inserts
-  if (saved > 0) {
-    await updateArenaSpendingDirectly(userId);
-  }
-
   return { saved, errors };
 }
 
