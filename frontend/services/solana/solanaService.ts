@@ -225,7 +225,7 @@ class SolanaService {
     );
   }
 
-  // Create arena with stake (simplified - using direct transfer for hackathon)
+  // Create arena with stake (simplified for hackathon - transfer to faucet as escrow)
   async createArenaEscrow(
     arenaId: string,
     stakeAmountSol: number,
@@ -236,18 +236,14 @@ class SolanaService {
     }
 
     try {
-      const stakeAmountLamports = stakeAmountSol * LAMPORTS_PER_SOL;
-      const [arenaPda, bump] = this.getArenaPda(arenaId);
+      const stakeAmountLamports = Math.floor(stakeAmountSol * LAMPORTS_PER_SOL);
 
-      // For hackathon demo: Using a simpler escrow pattern
-      // Create account and transfer SOL to PDA-derived address
-      const transaction = new Transaction();
-
-      // Transfer stake to escrow account (PDA address)
-      transaction.add(
+      // For hackathon demo: Transfer stake to faucet wallet (acts as escrow)
+      // The faucet wallet will pay out the winner later
+      const transaction = new Transaction().add(
         SystemProgram.transfer({
           fromPubkey: this.wallet.publicKey,
-          toPubkey: arenaPda,
+          toPubkey: this.faucetWallet.publicKey,
           lamports: stakeAmountLamports,
         })
       );
@@ -258,7 +254,7 @@ class SolanaService {
         [this.wallet]
       );
 
-      console.log('Arena escrow created:', signature);
+      console.log('Arena escrow created (stake sent to escrow):', signature);
 
       return {
         success: true,
@@ -274,23 +270,20 @@ class SolanaService {
     }
   }
 
-  // Join arena with stake
+  // Join arena with stake (transfer to faucet wallet as escrow)
   async joinArenaEscrow(arenaId: string, stakeAmountSol: number): Promise<TransactionResult> {
     if (!this.wallet) {
       return { success: false, error: 'Wallet not initialized' };
     }
 
     try {
-      const stakeAmountLamports = stakeAmountSol * LAMPORTS_PER_SOL;
-      const [arenaPda] = this.getArenaPda(arenaId);
+      const stakeAmountLamports = Math.floor(stakeAmountSol * LAMPORTS_PER_SOL);
 
-      const transaction = new Transaction();
-
-      // Transfer stake to escrow
-      transaction.add(
+      // For hackathon demo: Transfer stake to faucet wallet (acts as escrow)
+      const transaction = new Transaction().add(
         SystemProgram.transfer({
           fromPubkey: this.wallet.publicKey,
-          toPubkey: arenaPda,
+          toPubkey: this.faucetWallet.publicKey,
           lamports: stakeAmountLamports,
         })
       );
@@ -301,7 +294,7 @@ class SolanaService {
         [this.wallet]
       );
 
-      console.log('Joined arena escrow:', signature);
+      console.log('Joined arena escrow (stake sent to escrow):', signature);
 
       return {
         success: true,
