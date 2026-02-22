@@ -301,10 +301,42 @@ function parseUploadedContent(content: string): UserDataset | null {
     // Try parsing as JSON first
     if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
       const jsonData = JSON.parse(content);
+      console.log('Parsed JSON structure:', Object.keys(jsonData));
+
       if (Array.isArray(jsonData)) {
+        // Direct array of transactions
         transactions = jsonData.map(normalizeTransaction);
-      } else if (jsonData.transactions) {
+      } else if (jsonData.transactions && Array.isArray(jsonData.transactions)) {
+        // { transactions: [...] }
         transactions = jsonData.transactions.map(normalizeTransaction);
+      } else if (jsonData.statements && Array.isArray(jsonData.statements)) {
+        // Bank export format: { statements: [{ transactions: [...] }] }
+        jsonData.statements.forEach((statement: any) => {
+          if (statement.transactions && Array.isArray(statement.transactions)) {
+            const statementTxns = statement.transactions.map(normalizeTransaction);
+            transactions.push(...statementTxns);
+          }
+        });
+        console.log(`Extracted ${transactions.length} transactions from ${jsonData.statements.length} statements`);
+      } else if (jsonData.data && Array.isArray(jsonData.data)) {
+        // { data: [...] } format
+        transactions = jsonData.data.map(normalizeTransaction);
+      } else if (jsonData.records && Array.isArray(jsonData.records)) {
+        // { records: [...] } format
+        transactions = jsonData.records.map(normalizeTransaction);
+      } else {
+        // Try to find any array property that looks like transactions
+        for (const key of Object.keys(jsonData)) {
+          if (Array.isArray(jsonData[key]) && jsonData[key].length > 0) {
+            const sample = jsonData[key][0];
+            // Check if it looks like a transaction (has date/amount-like properties)
+            if (sample && (sample.date || sample.Date || sample.timestamp || sample.amount || sample.Amount)) {
+              console.log(`Found transactions in "${key}" property`);
+              transactions = jsonData[key].map(normalizeTransaction);
+              break;
+            }
+          }
+        }
       }
     } else {
       // Parse as CSV
@@ -332,14 +364,55 @@ function parseUploadedContent(content: string): UserDataset | null {
 
 /**
  * Normalize a transaction object to our standard format
+ * Handles various bank export formats
  */
 function normalizeTransaction(t: any): Transaction {
-  return {
-    date: t.date || t.Date || t.DATE || new Date().toISOString().split('T')[0],
-    description: t.description || t.Description || t.DESC || t.name || t.Name || 'Unknown',
-    amount: parseFloat(t.amount || t.Amount || t.AMOUNT || t.value || t.Value || 0),
-    category: t.category || t.Category || t.CATEGORY || categorizeTransaction(t.description || t.Description || ''),
-  };
+  // Extract date - handle various formats
+  let date = t.date || t.Date || t.DATE || t.transaction_date || t.transactionDate;
+  if (!date && t.timestamp) {
+    // Handle ISO timestamp
+    try {
+      date = new Date(t.timestamp).toISOString().split('T')[0];
+    } catch {
+      date = new Date().toISOString().split('T')[0];
+    }
+  }
+  if (!date) {
+    date = new Date().toISOString().split('T')[0];
+  }
+
+  // Extract description
+  const description = t.description || t.Description || t.DESC || t.name || t.Name ||
+    t.merchant || t.Merchant || t.payee || t.Payee || t.narrative || 'Unknown';
+
+  // Extract amount - handle various formats and signs
+  let amount = 0;
+  if (t.amount !== undefined) {
+    amount = parseFloat(t.amount);
+  } else if (t.Amount !== undefined) {
+    amount = parseFloat(t.Amount);
+  } else if (t.AMOUNT !== undefined) {
+    amount = parseFloat(t.AMOUNT);
+  } else if (t.value !== undefined) {
+    amount = parseFloat(t.value);
+  } else if (t.Value !== undefined) {
+    amount = parseFloat(t.Value);
+  }
+
+  // Handle transaction_type: DEBIT should be negative, CREDIT positive
+  const txnType = (t.transaction_type || t.transactionType || t.type || '').toUpperCase();
+  if (txnType === 'DEBIT' && amount > 0) {
+    amount = -amount;
+  } else if (txnType === 'CREDIT' && amount < 0) {
+    amount = -amount;
+  }
+
+  // Extract or derive category
+  const category = t.category || t.Category || t.CATEGORY ||
+    t.transaction_category || t.transactionCategory ||
+    categorizeTransaction(description);
+
+  return { date, description, amount, category };
 }
 
 /**
