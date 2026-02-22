@@ -382,6 +382,62 @@ class SolanaService {
     }
   }
 
+  /**
+   * Resolve arena escrow with real SOL payout to winner
+   * Uses faucet wallet to pay the winner (hackathon solution - no on-chain program needed)
+   */
+  async resolveArenaEscrowWithPayout(
+    arenaId: string,
+    winnerAddress: string,
+    prizeAmountSol: number
+  ): Promise<TransactionResult> {
+    try {
+      console.log(`Paying out ${prizeAmountSol} SOL to winner ${winnerAddress}`);
+
+      const winnerPubkey = new PublicKey(winnerAddress);
+      const prizeAmountLamports = Math.floor(prizeAmountSol * LAMPORTS_PER_SOL);
+
+      // Check faucet wallet balance
+      const faucetBalance = await this.connection.getBalance(this.faucetWallet.publicKey);
+      if (faucetBalance < prizeAmountLamports) {
+        console.error('Faucet wallet has insufficient funds');
+        return {
+          success: false,
+          error: 'Insufficient funds in prize pool',
+        };
+      }
+
+      // Create and send the transaction
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: this.faucetWallet.publicKey,
+          toPubkey: winnerPubkey,
+          lamports: prizeAmountLamports,
+        })
+      );
+
+      const signature = await sendAndConfirmTransaction(
+        this.connection,
+        transaction,
+        [this.faucetWallet]
+      );
+
+      console.log('Prize payout confirmed:', signature);
+
+      return {
+        success: true,
+        signature: signature,
+        explorerUrl: getExplorerUrl(signature),
+      };
+    } catch (error: any) {
+      console.error('Prize payout error:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to pay out prize',
+      };
+    }
+  }
+
   // Simple SOL transfer
   async transferSol(toAddress: string, amountSol: number): Promise<TransactionResult> {
     if (!this.wallet) {

@@ -37,6 +37,8 @@ export interface Database {
           stake_amount: number | null;
           created_at: string;
           ends_at: string | null;
+          winner_id: string | null;
+          payout_tx_signature: string | null;
         };
         Insert: {
           id?: string;
@@ -49,6 +51,8 @@ export interface Database {
           stake_amount?: number | null;
           created_at?: string;
           ends_at?: string | null;
+          winner_id?: string | null;
+          payout_tx_signature?: string | null;
         };
         Update: {
           id?: string;
@@ -61,6 +65,8 @@ export interface Database {
           stake_amount?: number | null;
           created_at?: string;
           ends_at?: string | null;
+          winner_id?: string | null;
+          payout_tx_signature?: string | null;
         };
       };
       arena_members: {

@@ -9,16 +9,20 @@ import {
   Dimensions,
   Animated,
   Linking,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../components/theme';
 import { useArena } from '../contexts/ArenaContext';
+import { useUserData } from '../contexts/UserDataContext';
 import { showAlert, copyToClipboard, shareContent } from '../utils/crossPlatform';
 import { useSolana } from '../contexts/SolanaContext';
 import { ArenaMemberWithUser } from '../types/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { calculateArenaPeriodSpend } from '../services/arenaSyncService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -260,12 +264,25 @@ export default function ArenaDetailScreen() {
     setCurrentArena,
     subscribeToArena,
     unsubscribeFromArena,
+    syncMyArenaSpending,
+    endArena,
+    getArenaWinner,
   } = useArena();
-  const { getEscrowInfo, wallet } = useSolana();
+  const { userDataset, transactionsUpdatedAt } = useUserData();
+  const { getEscrowInfo, wallet, resolveArenaEscrowWithPayout } = useSolana();
 
   const [refreshing, setRefreshing] = useState(false);
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
   const [escrowInfo, setEscrowInfo] = useState<EscrowInfo | null>(null);
+  const [showSettlementModal, setShowSettlementModal] = useState(false);
+  const [isEnding, setIsEnding] = useState(false);
+  const [settlementResult, setSettlementResult] = useState<{
+    success: boolean;
+    signature?: string;
+    winnerUsername?: string;
+    prizeAmount?: number;
+  } | null>(null);
+  const [mySpending, setMySpending] = useState<number | null>(null);
 
   // Fetch arena data
   useEffect(() => {
@@ -288,6 +305,22 @@ export default function ArenaDetailScreen() {
     };
     fetchEscrow();
   }, [currentArena]);
+
+  // Calculate user's spending for this arena
+  useEffect(() => {
+    if (currentArena && userDataset?.transactions) {
+      const arenaStart = new Date(currentArena.created_at);
+      const spending = calculateArenaPeriodSpend(userDataset.transactions, arenaStart);
+      setMySpending(spending.totalSpend);
+    }
+  }, [currentArena, userDataset, transactionsUpdatedAt]);
+
+  // Sync spending when transactions change
+  useEffect(() => {
+    if (currentArena && userDataset?.transactions && user) {
+      syncMyArenaSpending(currentArena.id, userDataset.transactions);
+    }
+  }, [transactionsUpdatedAt]);
 
   // Set up realtime subscription
   useEffect(() => {
@@ -329,6 +362,72 @@ export default function ArenaDetailScreen() {
     if (!currentArena) return;
     await copyToClipboard(currentArena.join_code);
     showAlert('Copied!', 'Arena code copied to clipboard');
+  };
+
+  const handleEndArena = () => {
+    if (!currentArena || currentArena.created_by !== user?.id) return;
+    setShowSettlementModal(true);
+  };
+
+  const handleConfirmEndArena = async () => {
+    if (!currentArena) return;
+
+    setIsEnding(true);
+    try {
+      // End the arena and get winner
+      const result = await endArena(currentArena.id);
+      if (!result) {
+        setSettlementResult({ success: false });
+        return;
+      }
+
+      // If there's a stake, process the payout
+      if (currentArena.stake_amount && escrowInfo && resolveArenaEscrowWithPayout) {
+        const winner = getArenaWinner(currentArena);
+        if (winner) {
+          // Get winner's wallet address (in a real app, this would be stored with user profile)
+          // For hackathon, we use the current wallet if winner is current user
+          const winnerIsCurrentUser = winner.user_id === user?.id;
+          const winnerAddress = winnerIsCurrentUser && wallet?.publicKey ? wallet.publicKey : null;
+
+          if (winnerAddress) {
+            const prizeAmount = currentArena.stake_amount * members.length;
+            const payoutResult = await resolveArenaEscrowWithPayout(
+              currentArena.join_code,
+              winnerAddress,
+              prizeAmount
+            );
+
+            setSettlementResult({
+              success: payoutResult.success,
+              signature: payoutResult.signature,
+              winnerUsername: result.winnerUsername,
+              prizeAmount,
+            });
+          } else {
+            setSettlementResult({
+              success: true,
+              winnerUsername: result.winnerUsername,
+              prizeAmount: currentArena.stake_amount * members.length,
+            });
+          }
+        }
+      } else {
+        setSettlementResult({
+          success: true,
+          winnerUsername: result.winnerUsername,
+        });
+      }
+    } catch (error) {
+      console.error('Error ending arena:', error);
+      setSettlementResult({ success: false });
+    } finally {
+      setIsEnding(false);
+    }
+  };
+
+  const handleLogTransaction = () => {
+    router.push('/add-transaction');
   };
 
   if (!currentArena) {
@@ -402,6 +501,36 @@ export default function ArenaDetailScreen() {
             )}
           </View>
 
+          {/* Your Spending Card */}
+          {currentArena.status === 'active' && mySpending !== null && (
+            <View style={styles.mySpendingCard}>
+              <View style={styles.mySpendingHeader}>
+                <Ionicons name="wallet-outline" size={24} color={theme.colors.deepTeal} />
+                <Text style={styles.mySpendingTitle}>Your Arena Spending</Text>
+              </View>
+              <View style={styles.mySpendingContent}>
+                <Text style={styles.mySpendingAmount}>
+                  €{mySpending.toFixed(2)}
+                </Text>
+                <Text style={styles.mySpendingLimit}>
+                  / €{currentArena.target_amount} limit
+                </Text>
+              </View>
+              <ProgressBar
+                current={mySpending}
+                target={currentArena.target_amount}
+                color={mySpending > currentArena.target_amount ? theme.colors.hotCoral : theme.colors.deepTeal}
+              />
+              <TouchableOpacity
+                style={styles.logTransactionButton}
+                onPress={handleLogTransaction}
+              >
+                <Ionicons name="add-circle-outline" size={18} color={theme.colors.deepTeal} />
+                <Text style={styles.logTransactionText}>Log Transaction</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Escrow Info Card */}
           {currentArena.stake_amount && escrowInfo && (
             <TouchableOpacity
@@ -422,6 +551,17 @@ export default function ArenaDetailScreen() {
                 <Ionicons name="open-outline" size={16} color={theme.colors.textSecondary} />
                 <Text style={styles.escrowExplorerText}>Explorer</Text>
               </View>
+            </TouchableOpacity>
+          )}
+
+          {/* End Arena Button (Creator Only) */}
+          {currentArena.status === 'active' && currentArena.created_by === user?.id && (
+            <TouchableOpacity
+              style={styles.endArenaButton}
+              onPress={handleEndArena}
+            >
+              <Ionicons name="flag" size={20} color={theme.colors.white} />
+              <Text style={styles.endArenaButtonText}>End Arena & Settle</Text>
             </TouchableOpacity>
           )}
 
@@ -481,6 +621,138 @@ export default function ArenaDetailScreen() {
           </View>
         </View>
       </View>
+
+      {/* Settlement Modal */}
+      <Modal
+        visible={showSettlementModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !isEnding && setShowSettlementModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {!settlementResult ? (
+              <>
+                <Text style={styles.modalTitle}>End Arena?</Text>
+                <Text style={styles.modalSubtitle}>
+                  This will finalize the competition and determine the winner.
+                </Text>
+
+                {/* Preview Winner */}
+                {currentArena && (
+                  <View style={styles.winnerPreview}>
+                    <Text style={styles.winnerPreviewLabel}>Current Leader</Text>
+                    {(() => {
+                      const potentialWinner = getArenaWinner(currentArena);
+                      return potentialWinner ? (
+                        <View style={styles.winnerPreviewRow}>
+                          <Text style={styles.winnerPreviewEmoji}>
+                            {potentialWinner.users?.avatar_url || ''}
+                          </Text>
+                          <Text style={styles.winnerPreviewName}>
+                            {potentialWinner.users?.username}
+                          </Text>
+                          <Text style={styles.winnerPreviewSpend}>
+                            €{potentialWinner.current_spend.toFixed(0)}
+                          </Text>
+                        </View>
+                      ) : null;
+                    })()}
+                  </View>
+                )}
+
+                {/* Prize Info */}
+                {currentArena?.stake_amount && (
+                  <View style={styles.prizeInfo}>
+                    <Ionicons name="trophy" size={24} color="#FFD700" />
+                    <Text style={styles.prizeAmount}>
+                      {(currentArena.stake_amount * members.length).toFixed(2)} SOL Prize
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={styles.modalCancelButton}
+                    onPress={() => setShowSettlementModal(false)}
+                    disabled={isEnding}
+                  >
+                    <Text style={styles.modalCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalConfirmButton, isEnding && styles.modalButtonDisabled]}
+                    onPress={handleConfirmEndArena}
+                    disabled={isEnding}
+                  >
+                    {isEnding ? (
+                      <ActivityIndicator color={theme.colors.white} size="small" />
+                    ) : (
+                      <Text style={styles.modalConfirmText}>End & Pay Out</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <>
+                {settlementResult.success ? (
+                  <>
+                    <Text style={styles.modalEmoji}>🎉</Text>
+                    <Text style={styles.modalTitle}>Arena Settled!</Text>
+                    <Text style={styles.modalSubtitle}>
+                      {settlementResult.winnerUsername} wins!
+                    </Text>
+
+                    {settlementResult.prizeAmount && (
+                      <View style={styles.prizeInfo}>
+                        <Ionicons name="checkmark-circle" size={24} color="#2E7D32" />
+                        <Text style={styles.prizeAmount}>
+                          {settlementResult.prizeAmount.toFixed(2)} SOL Paid
+                        </Text>
+                      </View>
+                    )}
+
+                    {settlementResult.signature && (
+                      <TouchableOpacity
+                        style={styles.explorerButton}
+                        onPress={() => {
+                          const url = `https://explorer.solana.com/tx/${settlementResult.signature}?cluster=devnet`;
+                          Linking.openURL(url);
+                        }}
+                      >
+                        <Ionicons name="open-outline" size={16} color="#9945FF" />
+                        <Text style={styles.explorerButtonText}>View on Explorer</Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.modalEmoji}>❌</Text>
+                    <Text style={styles.modalTitle}>Settlement Failed</Text>
+                    <Text style={styles.modalSubtitle}>
+                      Please try again or contact support.
+                    </Text>
+                  </>
+                )}
+
+                <TouchableOpacity
+                  style={styles.modalDoneButton}
+                  onPress={() => {
+                    setShowSettlementModal(false);
+                    setSettlementResult(null);
+                    if (settlementResult.success) {
+                      router.replace(`/arena-results?id=${currentArena?.id}`);
+                    }
+                  }}
+                >
+                  <Text style={styles.modalDoneText}>
+                    {settlementResult.success ? 'View Results' : 'Close'}
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -959,5 +1231,211 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: theme.colors.white,
+  },
+  // My Spending Card
+  mySpendingCard: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+    ...theme.cardShadow,
+  },
+  mySpendingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+  },
+  mySpendingTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.deepNavy,
+  },
+  mySpendingContent: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: theme.spacing.md,
+  },
+  mySpendingAmount: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: theme.colors.deepNavy,
+  },
+  mySpendingLimit: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    marginLeft: theme.spacing.sm,
+  },
+  logTransactionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
+    marginTop: theme.spacing.md,
+    backgroundColor: theme.colors.deepTeal + '15',
+    borderRadius: theme.borderRadius.md,
+  },
+  logTransactionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.deepTeal,
+  },
+  // End Arena Button
+  endArenaButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+    backgroundColor: theme.colors.hotCoral,
+    borderRadius: theme.borderRadius.md,
+    paddingVertical: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
+  },
+  endArenaButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.white,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.xl,
+    width: '100%',
+    maxWidth: 360,
+    alignItems: 'center',
+  },
+  modalEmoji: {
+    fontSize: 48,
+    marginBottom: theme.spacing.md,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: theme.colors.deepNavy,
+    textAlign: 'center',
+    marginBottom: theme.spacing.sm,
+  },
+  modalSubtitle: {
+    fontSize: 15,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: theme.spacing.lg,
+  },
+  winnerPreview: {
+    backgroundColor: theme.colors.softWhite,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    width: '100%',
+    marginBottom: theme.spacing.lg,
+  },
+  winnerPreviewLabel: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: theme.spacing.sm,
+  },
+  winnerPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+  },
+  winnerPreviewEmoji: {
+    fontSize: 32,
+  },
+  winnerPreviewName: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.deepNavy,
+  },
+  winnerPreviewSpend: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.deepTeal,
+  },
+  prizeInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    backgroundColor: '#FFD70020',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.borderRadius.full,
+    marginBottom: theme.spacing.lg,
+  },
+  prizeAmount: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#B8860B',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    width: '100%',
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    backgroundColor: theme.colors.softWhite,
+  },
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textSecondary,
+  },
+  modalConfirmButton: {
+    flex: 1,
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    backgroundColor: theme.colors.hotCoral,
+  },
+  modalButtonDisabled: {
+    backgroundColor: theme.colors.gray,
+  },
+  modalConfirmText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.white,
+  },
+  modalDoneButton: {
+    width: '100%',
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    backgroundColor: theme.colors.deepTeal,
+    marginTop: theme.spacing.md,
+  },
+  modalDoneText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.white,
+  },
+  explorerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    backgroundColor: '#9945FF20',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.lg,
+  },
+  explorerButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#9945FF',
   },
 });

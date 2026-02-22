@@ -5,9 +5,12 @@ import {
   StyleSheet,
   ScrollView,
   StatusBar,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useUserData } from '../../contexts/UserDataContext';
 import { theme } from '../../components/theme';
 import { ToggleTabs, TabOption } from '../../components/ToggleTabs';
 import { ComparisonChart } from '../../components/ComparisonChart';
@@ -78,18 +81,20 @@ const DEFAULT_ALERTS_DATA = [
 export default function HistoryScreen() {
   const [activeTab, setActiveTab] = useState<TabOption>('week');
   const [isLoading, setIsLoading] = useState(false);
+  const { userDataset, transactionsUpdatedAt } = useUserData();
 
   const handleTabChange = (tab: TabOption) => {
     setActiveTab(tab);
   };
 
   // Get user's transaction data with error handling
+  // Using userDataset from context ensures re-renders when transactions change
   let dataset = null;
   let transactions: any[] = [];
   let dataRangeMonths = 24;
 
   try {
-    dataset = getCachedUserDataset();
+    dataset = userDataset || getCachedUserDataset();
     transactions = dataset?.transactions || [];
     dataRangeMonths = dataset?.summary?.dataRangeMonths || 24;
   } catch (error) {
@@ -304,7 +309,7 @@ export default function HistoryScreen() {
         insufficientData: true,
       };
     }
-  }, [activeTab, transactions, dataRangeMonths]);
+  }, [activeTab, transactions, dataRangeMonths, transactionsUpdatedAt]);
 
   const periodDifference = totalLast > 0
     ? ((totalThis - totalLast) / totalLast * 100).toFixed(0)
@@ -398,6 +403,15 @@ export default function HistoryScreen() {
         {/* Bottom spacing for tab bar */}
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* Floating Action Button */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => router.push('/add-transaction')}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="add" size={28} color={theme.colors.white} />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -505,5 +519,21 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.md,
     fontSize: 14,
     color: theme.colors.gray,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: theme.colors.hotCoral,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
 });

@@ -23,6 +23,7 @@ interface SolanaContextType {
   createArenaEscrow: (arenaId: string, stakeAmount: number, maxPlayers: number) => Promise<TransactionResult>;
   joinArenaEscrow: (arenaId: string, stakeAmount: number) => Promise<TransactionResult>;
   resolveArenaEscrow: (arenaId: string, winnerAddress: string) => Promise<TransactionResult>;
+  resolveArenaEscrowWithPayout: (arenaId: string, winnerAddress: string, prizeAmount: number) => Promise<TransactionResult>;
   getEscrowInfo: (arenaId: string) => Promise<{ pdaAddress: string; balance: number; explorerUrl: string }>;
 
   // Utility
@@ -145,6 +146,23 @@ export const SolanaProvider: React.FC<SolanaProviderProps> = ({ children }) => {
     }
   };
 
+  const resolveArenaEscrowWithPayout = async (
+    arenaId: string,
+    winnerAddress: string,
+    prizeAmount: number
+  ): Promise<TransactionResult> => {
+    setIsLoading(true);
+    try {
+      const result = await solanaService.resolveArenaEscrowWithPayout(arenaId, winnerAddress, prizeAmount);
+      if (result.success) {
+        await refreshBalance();
+      }
+      return result;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const getEscrowInfo = async (arenaId: string) => {
     return solanaService.getEscrowInfo(arenaId);
   };
@@ -162,6 +180,7 @@ export const SolanaProvider: React.FC<SolanaProviderProps> = ({ children }) => {
         createArenaEscrow,
         joinArenaEscrow,
         resolveArenaEscrow,
+        resolveArenaEscrowWithPayout,
         getEscrowInfo,
         getExplorerUrl,
         getExplorerAddressUrl,

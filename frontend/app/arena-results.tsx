@@ -129,13 +129,14 @@ const ResultRow: React.FC<{
 
 export default function ArenaResultsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { user, fetchArenaById, currentArena, setCurrentArena } = useArena();
-  const { wallet, resolveArenaEscrow, getExplorerUrl, getEscrowInfo } = useSolana();
+  const { user, fetchArenaById, currentArena, setCurrentArena, getArenaWinner } = useArena();
+  const { wallet, resolveArenaEscrowWithPayout, getExplorerUrl, getEscrowInfo } = useSolana();
   const [loading, setLoading] = useState(true);
   const [isClaiming, setIsClaiming] = useState(false);
   const [payoutTxSignature, setPayoutTxSignature] = useState<string | null>(null);
   const [escrowBalance, setEscrowBalance] = useState<number>(0);
   const [hasClaimed, setHasClaimed] = useState(false);
+  const [payoutError, setPayoutError] = useState<string | null>(null);
 
   useEffect(() => {
     loadArena();
@@ -163,20 +164,31 @@ export default function ArenaResultsScreen() {
     if (!currentArena || !wallet) return;
 
     setIsClaiming(true);
+    setPayoutError(null);
+
     try {
-      const result = await resolveArenaEscrow(
+      // Calculate prize amount
+      const prizeAmount = (currentArena.stake_amount || 0) * members.length;
+
+      const result = await resolveArenaEscrowWithPayout(
         currentArena.join_code,
-        wallet.publicKey
+        wallet.publicKey,
+        prizeAmount
       );
 
       if (result.success && result.signature) {
         setPayoutTxSignature(result.signature);
         setHasClaimed(true);
         console.log('Prize claimed:', result.explorerUrl);
+
+        // Update arena with payout tx signature
+        // Note: In production, this would be stored in the database
       } else {
+        setPayoutError(result.error || 'Failed to claim prize');
         console.error('Claim failed:', result.error);
       }
-    } catch (e) {
+    } catch (e: any) {
+      setPayoutError(e.message || 'Failed to claim prize');
       console.error('Claim error:', e);
     } finally {
       setIsClaiming(false);
@@ -266,24 +278,32 @@ export default function ArenaResultsScreen() {
                       onPress={() => Linking.openURL(getExplorerUrl(payoutTxSignature))}
                     >
                       <Ionicons name="open-outline" size={16} color="#9945FF" />
-                      <Text style={styles.explorerButtonText}>View Transaction</Text>
+                      <Text style={styles.explorerButtonText}>View on Solana Explorer</Text>
                     </TouchableOpacity>
+                    <Text style={styles.txSignature}>
+                      TX: {payoutTxSignature.slice(0, 8)}...{payoutTxSignature.slice(-8)}
+                    </Text>
                   </View>
                 ) : escrowBalance > 0 && !hasClaimed ? (
-                  <TouchableOpacity
-                    style={[styles.claimButton, isClaiming && styles.claimButtonDisabled]}
-                    onPress={handleClaimPrize}
-                    disabled={isClaiming}
-                  >
-                    {isClaiming ? (
-                      <ActivityIndicator color={theme.colors.white} size="small" />
-                    ) : (
-                      <>
-                        <Ionicons name="wallet" size={20} color={theme.colors.white} />
-                        <Text style={styles.claimButtonText}>Claim Prize</Text>
-                      </>
+                  <>
+                    <TouchableOpacity
+                      style={[styles.claimButton, isClaiming && styles.claimButtonDisabled]}
+                      onPress={handleClaimPrize}
+                      disabled={isClaiming}
+                    >
+                      {isClaiming ? (
+                        <ActivityIndicator color={theme.colors.white} size="small" />
+                      ) : (
+                        <>
+                          <Ionicons name="wallet" size={20} color={theme.colors.white} />
+                          <Text style={styles.claimButtonText}>Claim Prize</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                    {payoutError && (
+                      <Text style={styles.errorText}>{payoutError}</Text>
                     )}
-                  </TouchableOpacity>
+                  </>
                 ) : null}
               </>
             )}
@@ -665,5 +685,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: theme.colors.white,
+  },
+  txSignature: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginTop: theme.spacing.sm,
+    fontFamily: 'monospace',
+  },
+  errorText: {
+    fontSize: 14,
+    color: theme.colors.hotCoral,
+    marginTop: theme.spacing.sm,
+    textAlign: 'center',
   },
 });

@@ -159,7 +159,7 @@ const InsightCard: React.FC<InsightCardProps> = ({ insight }) => {
  */
 export default function InsightsScreen() {
   const { isPro } = usePro();
-  const { userDataset, isDataLoaded } = useUserData();
+  const { userDataset, isDataLoaded, transactionsUpdatedAt } = useUserData();
   const [showLockedModal, setShowLockedModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -355,7 +355,7 @@ export default function InsightsScreen() {
         insight,
       },
     };
-  }, [userDataset]);
+  }, [userDataset, transactionsUpdatedAt]);
 
 
   return (

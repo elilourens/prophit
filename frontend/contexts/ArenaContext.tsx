@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '../services/supabase';
-import { User, Arena, ArenaMember, ArenaWithMembers } from '../types/supabase';
+import { User, Arena, ArenaMember, ArenaWithMembers, ArenaMemberWithUser } from '../types/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { Transaction } from '../services/fakeDatasets';
+import { syncMemberSpending, calculateArenaPeriodSpend } from '../services/arenaSyncService';
 
 interface ArenaContextType {
   // User state
@@ -28,6 +30,11 @@ interface ArenaContextType {
   updateMemberSpend: (memberId: string, spend: number) => Promise<void>;
   subscribeToArena: (arenaId: string) => RealtimeChannel;
   unsubscribeFromArena: (channel: RealtimeChannel) => void;
+
+  // Sync methods
+  syncMyArenaSpending: (arenaId: string, transactions: Transaction[]) => Promise<void>;
+  endArena: (arenaId: string) => Promise<{ winnerId: string; winnerUsername: string } | null>;
+  getArenaWinner: (arena: ArenaWithMembers) => ArenaMemberWithUser | null;
 }
 
 const ArenaContext = createContext<ArenaContextType | undefined>(undefined);
@@ -394,6 +401,115 @@ export const ArenaProvider: React.FC<ArenaProviderProps> = ({ children }) => {
     supabase.removeChannel(channel);
   };
 
+  /**
+   * Sync current user's spending for a specific arena
+   */
+  const syncMyArenaSpending = async (arenaId: string, transactions: Transaction[]) => {
+    if (!user) return;
+
+    const arena = await fetchArenaById(arenaId);
+    if (!arena) return;
+
+    const result = await syncMemberSpending(
+      arenaId,
+      user.id,
+      transactions,
+      arena.created_at
+    );
+
+    if (result.success) {
+      // Refresh arena data to reflect new spending
+      const updated = await fetchArenaById(arenaId);
+      if (updated && currentArena?.id === arenaId) {
+        setCurrentArena(updated);
+      }
+      await fetchMyArenas();
+    }
+  };
+
+  /**
+   * Determine the winner of an arena based on mode
+   */
+  const getArenaWinner = (arena: ArenaWithMembers): ArenaMemberWithUser | null => {
+    const members = arena.arena_members || [];
+    if (members.length === 0) return null;
+
+    // Filter out eliminated members
+    const activemembers = members.filter(m => !m.is_eliminated);
+    if (activemembers.length === 0) return null;
+
+    // Sort based on mode
+    const sorted = [...activemembers].sort((a, b) => {
+      switch (arena.mode) {
+        case 'budget_guardian':
+          // Lowest spend under target wins
+          return a.current_spend - b.current_spend;
+        case 'vice_streak':
+          // Lowest spend in target category wins
+          return a.current_spend - b.current_spend;
+        case 'savings_sprint':
+          // Highest savings wins
+          return b.current_savings - a.current_savings;
+        default:
+          return a.current_spend - b.current_spend;
+      }
+    });
+
+    return sorted[0];
+  };
+
+  /**
+   * End an arena and determine the winner
+   */
+  const endArena = async (arenaId: string): Promise<{ winnerId: string; winnerUsername: string } | null> => {
+    if (!user) return null;
+
+    const arena = await fetchArenaById(arenaId);
+    if (!arena) {
+      console.error('Arena not found');
+      return null;
+    }
+
+    // Only creator can end the arena
+    if (arena.created_by !== user.id) {
+      console.error('Only arena creator can end the arena');
+      return null;
+    }
+
+    // Determine winner
+    const winner = getArenaWinner(arena);
+    if (!winner) {
+      console.error('No valid winner found');
+      return null;
+    }
+
+    // Update arena status to completed and set winner
+    const { error } = await supabase
+      .from('arenas')
+      .update({
+        status: 'completed',
+        winner_id: winner.user_id,
+      } as any)
+      .eq('id', arenaId);
+
+    if (error) {
+      console.error('Error ending arena:', error);
+      return null;
+    }
+
+    // Refresh arena data
+    const updated = await fetchArenaById(arenaId);
+    if (updated) {
+      setCurrentArena(updated);
+    }
+    await fetchMyArenas();
+
+    return {
+      winnerId: winner.user_id,
+      winnerUsername: winner.users?.username || 'Unknown',
+    };
+  };
+
   // Fetch arenas when user changes
   useEffect(() => {
     if (user) {
@@ -421,6 +537,9 @@ export const ArenaProvider: React.FC<ArenaProviderProps> = ({ children }) => {
         updateMemberSpend,
         subscribeToArena,
         unsubscribeFromArena,
+        syncMyArenaSpending,
+        endArena,
+        getArenaWinner,
       }}
     >
       {children}

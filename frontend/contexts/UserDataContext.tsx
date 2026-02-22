@@ -3,21 +3,45 @@
  *
  * Watches for auth changes and manages user's fake dataset assignment.
  * Works alongside ArenaContext without modifying it.
+ * Also handles manual transaction entry and deletion.
  */
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useArena } from './ArenaContext';
 import { supabase } from '../services/supabase';
-import { initUserData, clearUserData, getCachedUserDataset, isUsingUploadedData, restoreUploadedData } from '../services/backendApi';
-import { UserDataset, getRandomAvailableDatasetId, getDatasetById } from '../services/fakeDatasets';
+import {
+  initUserData,
+  clearUserData,
+  getCachedUserDataset,
+  isUsingUploadedData,
+  restoreUploadedData,
+  addTransactionToDataset,
+  removeTransactionFromDataset,
+  categorizeTransaction,
+} from '../services/backendApi';
+import { UserDataset, Transaction, getRandomAvailableDatasetId, getDatasetById } from '../services/fakeDatasets';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  loadUserDatasetFromSupabase,
+  saveTransactionToSupabase,
+  deleteTransactionFromSupabase,
+  syncUploadedDataToSupabase,
+} from '../services/transactionSyncService';
 
 const LOCAL_DATASET_KEY = '@prophit_user_dataset_id';
 
 interface UserDataContextType {
   userDataset: UserDataset | null;
   isDataLoaded: boolean;
+  transactionsUpdatedAt: number; // Timestamp to trigger re-renders
   reloadUserData: () => Promise<void>;
+  addTransaction: (transaction: {
+    date: string;
+    description: string;
+    amount: number;
+    category?: string;
+  }) => Promise<void>;
+  deleteTransaction: (date: string, description: string, amount: number) => Promise<void>;
 }
 
 const UserDataContext = createContext<UserDataContextType | undefined>(undefined);
@@ -38,6 +62,7 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
   const { user, isAuthenticated } = useArena();
   const [userDataset, setUserDataset] = useState<UserDataset | null>(null);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [transactionsUpdatedAt, setTransactionsUpdatedAt] = useState<number>(Date.now());
 
   // Watch for user changes
   useEffect(() => {
@@ -56,40 +81,64 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
     try {
       setIsDataLoaded(false);
 
-      // First, try to restore uploaded data from storage (survives app reload)
+      // PRIORITY 1: Check Supabase for synced transactions (persists across devices)
+      console.log('Checking Supabase for synced transactions...');
+      const supabaseDataset = await loadUserDatasetFromSupabase(userId);
+      if (supabaseDataset && supabaseDataset.transactions.length > 0) {
+        console.log('Loaded', supabaseDataset.transactions.length, 'transactions from Supabase');
+        setUserDataset(supabaseDataset);
+        setIsDataLoaded(true);
+        return;
+      }
+
+      // PRIORITY 2: Try to restore uploaded data from local storage (survives app reload)
       const restoredUploaded = await restoreUploadedData();
       if (restoredUploaded) {
         const uploadedDataset = getCachedUserDataset();
         if (uploadedDataset && uploadedDataset.transactions.length > 0) {
           console.log('Using restored uploaded data:', uploadedDataset.transactions.length, 'transactions');
+          // Sync to Supabase for persistence across devices
+          await syncUploadedDataToSupabase(userId, uploadedDataset.transactions);
           setUserDataset(uploadedDataset);
           setIsDataLoaded(true);
           return;
         }
       }
 
-      // If user uploaded their own data (PDF/CSV), use that instead of fake data
+      // PRIORITY 3: If user uploaded their own data (PDF/CSV) in memory, use that
       if (isUsingUploadedData()) {
         const uploadedDataset = getCachedUserDataset();
         if (uploadedDataset && uploadedDataset.transactions.length > 0) {
           console.log('Using uploaded user data instead of fake dataset');
+          // Sync to Supabase
+          await syncUploadedDataToSupabase(userId, uploadedDataset.transactions);
           setUserDataset(uploadedDataset);
           setIsDataLoaded(true);
           return;
         }
       }
 
-      // First check local storage (fastest)
+      // PRIORITY 4: Check local storage for fake dataset ID
       const localId = await AsyncStorage.getItem(LOCAL_DATASET_KEY);
       if (localId) {
         const id = parseInt(localId, 10);
         initUserData(id);
-        setUserDataset(getCachedUserDataset());
+        const dataset = getCachedUserDataset();
+        setUserDataset(dataset);
         setIsDataLoaded(true);
+        // Sync mock data to Supabase so arenas work
+        if (dataset && dataset.transactions.length > 0) {
+          console.log(`Syncing existing mock dataset ${id} to Supabase...`);
+          syncUploadedDataToSupabase(userId, dataset.transactions).then(result => {
+            console.log(`Mock data synced: ${result.added} new, ${result.skipped} skipped`);
+          }).catch(err => {
+            console.error('Failed to sync mock data:', err);
+          });
+        }
         return;
       }
 
-      // Check if user already has a dataset assigned in Supabase
+      // PRIORITY 5: Check if user already has a dataset assigned in Supabase
       const { data: userData, error } = await supabase
         .from('users')
         .select('dataset_id')
@@ -100,8 +149,18 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
         // User has a dataset, load it
         await AsyncStorage.setItem(LOCAL_DATASET_KEY, String(userData.dataset_id));
         initUserData(userData.dataset_id);
-        setUserDataset(getCachedUserDataset());
+        const dataset = getCachedUserDataset();
+        setUserDataset(dataset);
         setIsDataLoaded(true);
+        // Sync mock data to Supabase so arenas work
+        if (dataset && dataset.transactions.length > 0) {
+          console.log(`Syncing Supabase-assigned mock dataset to Supabase transactions...`);
+          syncUploadedDataToSupabase(userId, dataset.transactions).then(result => {
+            console.log(`Mock data synced: ${result.added} new, ${result.skipped} skipped`);
+          }).catch(err => {
+            console.error('Failed to sync mock data:', err);
+          });
+        }
         return;
       }
 
@@ -144,8 +203,19 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
 
       // Load the dataset
       initUserData(datasetId);
-      setUserDataset(getCachedUserDataset());
+      const dataset = getCachedUserDataset();
+      setUserDataset(dataset);
       setIsDataLoaded(true);
+
+      // Sync mock dataset transactions to Supabase so arenas work
+      if (dataset && dataset.transactions.length > 0) {
+        console.log(`Syncing mock dataset ${datasetId} (${dataset.transactions.length} txns) to Supabase...`);
+        syncUploadedDataToSupabase(userId, dataset.transactions).then(result => {
+          console.log(`Mock data synced: ${result.added} new, ${result.skipped} skipped`);
+        }).catch(err => {
+          console.error('Failed to sync mock data:', err);
+        });
+      }
 
       console.log(`Assigned dataset ${datasetId} to user ${userId}`);
     } catch (error) {
@@ -181,19 +251,37 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
     const restoredUploaded = await restoreUploadedData();
     if (restoredUploaded) {
       const uploadedDataset = getCachedUserDataset();
-      if (uploadedDataset) {
+      if (uploadedDataset && uploadedDataset.transactions.length > 0) {
         console.log('Reloaded uploaded data from storage');
         setUserDataset(uploadedDataset);
         setIsDataLoaded(true);
+        setTransactionsUpdatedAt(Date.now());
+        // Sync to Supabase in background
+        if (user) {
+          syncUploadedDataToSupabase(user.id, uploadedDataset.transactions).then(result => {
+            console.log(`Synced to Supabase: ${result.added} new, ${result.skipped} skipped`);
+          }).catch(err => {
+            console.error('Failed to sync to Supabase:', err);
+          });
+        }
         return;
       }
     }
     // If using uploaded data in memory, just refresh from cache
     if (isUsingUploadedData()) {
       const uploadedDataset = getCachedUserDataset();
-      if (uploadedDataset) {
+      if (uploadedDataset && uploadedDataset.transactions.length > 0) {
         setUserDataset(uploadedDataset);
         setIsDataLoaded(true);
+        setTransactionsUpdatedAt(Date.now());
+        // Sync to Supabase in background
+        if (user) {
+          syncUploadedDataToSupabase(user.id, uploadedDataset.transactions).then(result => {
+            console.log(`Synced to Supabase: ${result.added} new, ${result.skipped} skipped`);
+          }).catch(err => {
+            console.error('Failed to sync to Supabase:', err);
+          });
+        }
         return;
       }
     }
@@ -202,12 +290,67 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
     }
   };
 
+  /**
+   * Add a new transaction to the dataset
+   */
+  const addTransaction = async (transactionData: {
+    date: string;
+    description: string;
+    amount: number;
+    category?: string;
+  }) => {
+    const transaction: Transaction = {
+      date: transactionData.date,
+      description: transactionData.description,
+      amount: transactionData.amount,
+      category: transactionData.category || categorizeTransaction(transactionData.description),
+    };
+
+    // Add to local storage first
+    const updatedDataset = await addTransactionToDataset(transaction);
+    if (updatedDataset) {
+      setUserDataset(updatedDataset);
+      setTransactionsUpdatedAt(Date.now());
+      console.log('Transaction added, updated timestamp:', Date.now());
+    }
+
+    // Sync to Supabase (async, don't block UI)
+    if (user) {
+      saveTransactionToSupabase(user.id, transaction).catch(err => {
+        console.error('Failed to sync transaction to Supabase:', err);
+      });
+    }
+  };
+
+  /**
+   * Delete a transaction from the dataset
+   */
+  const deleteTransaction = async (date: string, description: string, amount: number) => {
+    // Remove from local storage first
+    const updatedDataset = await removeTransactionFromDataset(date, description, amount);
+    if (updatedDataset) {
+      setUserDataset(updatedDataset);
+      setTransactionsUpdatedAt(Date.now());
+      console.log('Transaction deleted, updated timestamp:', Date.now());
+    }
+
+    // Sync to Supabase (async, don't block UI)
+    if (user) {
+      deleteTransactionFromSupabase(user.id, date, description, amount).catch(err => {
+        console.error('Failed to delete transaction from Supabase:', err);
+      });
+    }
+  };
+
   return (
     <UserDataContext.Provider
       value={{
         userDataset,
         isDataLoaded,
+        transactionsUpdatedAt,
         reloadUserData,
+        addTransaction,
+        deleteTransaction,
       }}
     >
       {children}

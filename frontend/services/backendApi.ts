@@ -166,7 +166,7 @@ export async function setUseUploadedData(value: boolean, fileContent?: string, f
     }
 
     // For text files, parse locally
-    const parsedDataset = parseUploadedContent(fileContent);
+    const parsedDataset = await parseUploadedContent(fileContent);
     if (parsedDataset) {
       cachedUserDataset = parsedDataset;
       // Persist the parsed dataset
@@ -233,20 +233,55 @@ async function parsePDFViaBackend(base64Content: string, fileUri?: string): Prom
     console.log('Parse-pdf result:', JSON.stringify(result).substring(0, 500));
 
     // The /parse-pdf endpoint returns: { transactions: [...], summary: {...} }
-    let transactions: Transaction[] = [];
+    let newTransactions: Transaction[] = [];
 
     if (result.transactions && Array.isArray(result.transactions)) {
-      transactions = result.transactions.map(normalizeTransaction);
+      newTransactions = result.transactions.map(normalizeTransaction);
     }
 
     if (result.error) {
       console.warn('Backend returned error:', result.error);
     }
 
-    if (transactions.length > 0) {
-      console.log(`Extracted ${transactions.length} transactions from PDF`);
-      const summary = calculateSummaryFromTransactions(transactions);
-      return { id: -1, transactions, summary };
+    if (newTransactions.length > 0) {
+      console.log(`Extracted ${newTransactions.length} transactions from PDF`);
+
+      // MERGE with existing data instead of replacing
+      let existingTransactions: Transaction[] = [];
+      try {
+        const stored = await AsyncStorage.getItem(UPLOADED_DATA_KEY);
+        if (stored) {
+          const existingDataset = JSON.parse(stored) as UserDataset;
+          existingTransactions = existingDataset.transactions || [];
+          console.log(`Found ${existingTransactions.length} existing transactions to merge with`);
+        }
+      } catch (e) {
+        console.log('No existing data to merge');
+      }
+
+      // Combine and deduplicate (by date + description + amount)
+      const allTransactions = [...existingTransactions];
+      let addedCount = 0;
+      for (const newTxn of newTransactions) {
+        const isDuplicate = allTransactions.some(
+          existing =>
+            existing.date === newTxn.date &&
+            existing.description === newTxn.description &&
+            existing.amount === newTxn.amount
+        );
+        if (!isDuplicate) {
+          allTransactions.push(newTxn);
+          addedCount++;
+        }
+      }
+
+      // Sort by date descending (most recent first)
+      allTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      console.log(`Merged: ${addedCount} new + ${existingTransactions.length} existing = ${allTransactions.length} total`);
+
+      const summary = calculateSummaryFromTransactions(allTransactions);
+      return { id: -1, transactions: allTransactions, summary };
     } else {
       console.warn('No transactions found in response');
       console.log('Full response:', JSON.stringify(result));
@@ -265,8 +300,9 @@ async function parsePDFViaBackend(base64Content: string, fileUri?: string): Prom
 
 /**
  * Parse uploaded file content (CSV, JSON, PDF, or raw text) into a UserDataset
+ * Merges with existing data instead of replacing
  */
-function parseUploadedContent(content: string): UserDataset | null {
+async function parseUploadedContent(content: string): Promise<UserDataset | null> {
   try {
     let transactions: Transaction[] = [];
 
@@ -348,12 +384,46 @@ function parseUploadedContent(content: string): UserDataset | null {
       return null;
     }
 
-    // Calculate summary from parsed transactions
-    const summary = calculateSummaryFromTransactions(transactions);
+    // MERGE with existing data instead of replacing
+    let existingTransactions: Transaction[] = [];
+    try {
+      const stored = await AsyncStorage.getItem(UPLOADED_DATA_KEY);
+      if (stored) {
+        const existingDataset = JSON.parse(stored) as UserDataset;
+        existingTransactions = existingDataset.transactions || [];
+        console.log(`Found ${existingTransactions.length} existing transactions to merge with`);
+      }
+    } catch (e) {
+      console.log('No existing data to merge');
+    }
+
+    // Combine and deduplicate
+    const allTransactions = [...existingTransactions];
+    let addedCount = 0;
+    for (const newTxn of transactions) {
+      const isDuplicate = allTransactions.some(
+        existing =>
+          existing.date === newTxn.date &&
+          existing.description === newTxn.description &&
+          existing.amount === newTxn.amount
+      );
+      if (!isDuplicate) {
+        allTransactions.push(newTxn);
+        addedCount++;
+      }
+    }
+
+    // Sort by date descending
+    allTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    console.log(`Merged: ${addedCount} new + ${existingTransactions.length} existing = ${allTransactions.length} total`);
+
+    // Calculate summary from merged transactions
+    const summary = calculateSummaryFromTransactions(allTransactions);
 
     return {
       id: -1, // Special ID for uploaded data
-      transactions,
+      transactions: allTransactions,
       summary,
     };
   } catch (error) {
@@ -417,8 +487,9 @@ function normalizeTransaction(t: any): Transaction {
 
 /**
  * Auto-categorize a transaction based on description
+ * Exported for use by transactionService
  */
-function categorizeTransaction(description: string): string {
+export function categorizeTransaction(description: string): string {
   const desc = description.toLowerCase();
   if (desc.includes('coffee') || desc.includes('starbucks') || desc.includes('costa')) return 'Coffee';
   if (desc.includes('uber') || desc.includes('bolt') || desc.includes('taxi') || desc.includes('luas') || desc.includes('bus')) return 'Transport';
@@ -479,8 +550,9 @@ function parseCSV(content: string): Transaction[] {
 
 /**
  * Calculate summary statistics from transactions
+ * Exported for use by transactionService
  */
-function calculateSummaryFromTransactions(transactions: Transaction[]): TransactionSummary {
+export function calculateSummaryFromTransactions(transactions: Transaction[]): TransactionSummary {
   const expenses = transactions.filter(t => t.amount < 0);
   const income = transactions.filter(t => t.amount > 0);
 
@@ -1041,6 +1113,71 @@ export function clearUserData(): void {
   cachedUserDataset = null;
 }
 
+/**
+ * Update the cached user dataset with a new dataset
+ * Used when transactions are added/removed
+ */
+export function updateCachedUserDataset(dataset: UserDataset): void {
+  cachedUserDataset = dataset;
+}
+
+/**
+ * Add a transaction to the cached dataset and persist
+ * Returns the updated dataset
+ */
+export async function addTransactionToDataset(transaction: Transaction): Promise<UserDataset | null> {
+  if (!cachedUserDataset) {
+    console.warn('No cached dataset to add transaction to');
+    return null;
+  }
+
+  // Add transaction to the beginning (most recent)
+  cachedUserDataset.transactions.unshift(transaction);
+
+  // Recalculate summary
+  cachedUserDataset.summary = calculateSummaryFromTransactions(cachedUserDataset.transactions);
+
+  // Persist to storage
+  await AsyncStorage.setItem(UPLOADED_DATA_KEY, JSON.stringify(cachedUserDataset));
+
+  console.log('Added transaction to dataset:', transaction.description);
+  return { ...cachedUserDataset };
+}
+
+/**
+ * Remove a transaction from the cached dataset and persist
+ * Returns the updated dataset
+ */
+export async function removeTransactionFromDataset(
+  date: string,
+  description: string,
+  amount: number
+): Promise<UserDataset | null> {
+  if (!cachedUserDataset) {
+    console.warn('No cached dataset to remove transaction from');
+    return null;
+  }
+
+  // Find and remove the transaction
+  const index = cachedUserDataset.transactions.findIndex(t =>
+    t.date === date && t.description === description && t.amount === amount
+  );
+
+  if (index !== -1) {
+    cachedUserDataset.transactions.splice(index, 1);
+
+    // Recalculate summary
+    cachedUserDataset.summary = calculateSummaryFromTransactions(cachedUserDataset.transactions);
+
+    // Persist to storage
+    await AsyncStorage.setItem(UPLOADED_DATA_KEY, JSON.stringify(cachedUserDataset));
+
+    console.log('Removed transaction from dataset:', description);
+  }
+
+  return { ...cachedUserDataset };
+}
+
 // Fallback demo data (used if no user dataset loaded)
 const DEFAULT_DEMO_TRANSACTIONS = {
   transactions: [
@@ -1227,4 +1364,10 @@ export default {
   setUseUploadedData,
   isUsingUploadedData,
   getUploadedFileContent,
+  // New exports for transaction management
+  categorizeTransaction,
+  calculateSummaryFromTransactions,
+  updateCachedUserDataset,
+  addTransactionToDataset,
+  removeTransactionFromDataset,
 };
