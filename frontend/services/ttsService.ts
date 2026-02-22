@@ -205,6 +205,19 @@ class TTSService {
     if (hour >= 12 && hour < 17) greeting = 'Good afternoon';
     if (hour >= 17) greeting = 'Good evening';
 
+    // Handle case when there's no transaction data
+    const hasData = data.topPrediction.probability > 0 &&
+      !data.topPrediction.title.toLowerCase().includes('no data') &&
+      !data.topPrediction.title.toLowerCase().includes('loading');
+
+    if (!hasData) {
+      return `${greeting}, ${data.userName}! ` +
+        `It's currently ${data.temperature} degrees in ${data.location}. ` +
+        `I don't have any transaction data yet to make predictions. ` +
+        `Upload your bank statement to get personalized spending forecasts. ` +
+        `Have a great day!`;
+    }
+
     return `${greeting}, ${data.userName}! ` +
       `It's currently ${data.temperature} degrees in ${data.location}. ` +
       `Your top prediction for today: there's a ${data.topPrediction.probability} percent chance of ${data.topPrediction.title.toLowerCase()}. ` +
