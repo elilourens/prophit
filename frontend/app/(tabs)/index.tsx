@@ -113,6 +113,9 @@ export default function HomeScreen() {
   // Get username from context or default
   const userName = user?.username || 'there';
 
+  // Check if user has transaction data
+  const hasTransactionData = userDataset?.transactions && userDataset.transactions.length > 0;
+
   // Fetch predictions when user data is loaded
   useEffect(() => {
     if (isDataLoaded) {
@@ -188,8 +191,8 @@ export default function HomeScreen() {
           temperature={DUBLIN_WEATHER.temperature}
           location="Dublin"
           weatherIcon="sunny"
-          topPrediction={topPrediction || (predictions.length === 0 ? { title: 'No data yet', probability: 0 } : { title: 'Loading...', probability: 0 })}
-          nudge={predictions.length === 0 ? "Upload your bank statement to get personalized insights" : "You usually spend more on Fridays"}
+          topPrediction={topPrediction || (hasTransactionData ? { title: 'Loading...', probability: 0 } : { title: 'No data yet', probability: 0 })}
+          nudge={hasTransactionData ? "You usually spend more on Fridays" : "Upload your bank statement to get personalized insights"}
           onViewFullBriefing={handleViewFullBriefing}
         />
 
