@@ -10,7 +10,8 @@ import { useArena } from '../../contexts/ArenaContext';
 import { useSolana } from '../../contexts/SolanaContext';
 import { useUserData } from '../../contexts/UserDataContext';
 import { parseFileToTransactions, parsePDFToTransactions, clearAllTransactionData } from '../../services/backendApi';
-import { clearAllTransactions, syncUploadedDataToSupabase } from '../../services/transactionSyncService';
+import { clearAllTransactions, syncUploadedDataToSupabase, loadTransactionsFromSupabase } from '../../services/transactionSyncService';
+import { syncAllArenaSpending } from '../../services/arenaSyncService';
 import { showAlert, copyToClipboard, readFileAsString, readFileAsBase64 } from '../../utils/crossPlatform';
 
 /**
@@ -130,6 +131,15 @@ export default function ProfileScreen() {
       console.log(`Synced: ${syncResult.added} new, ${syncResult.skipped} duplicates`);
 
       await reloadUserData();
+
+      // Sync arena spending with ALL transactions (load fresh from Supabase)
+      if (syncResult.added > 0) {
+        console.log('Syncing arena spending after profile file upload...');
+        const allTransactions = await loadTransactionsFromSupabase(user.id);
+        await syncAllArenaSpending(user.id, allTransactions);
+        console.log('Arena sync complete');
+      }
+
       showAlert('Success', `${syncResult.added} new transactions imported!${syncResult.skipped > 0 ? ` (${syncResult.skipped} duplicates skipped)` : ''}`);
     } catch (error) {
       console.error('Upload error:', error);

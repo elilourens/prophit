@@ -15,7 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { theme } from '../components/theme';
 import { parseFileToTransactions, parsePDFToTransactions } from '../services/backendApi';
-import { syncUploadedDataToSupabase } from '../services/transactionSyncService';
+import { syncUploadedDataToSupabase, loadTransactionsFromSupabase } from '../services/transactionSyncService';
+import { syncAllArenaSpending } from '../services/arenaSyncService';
 import { useUserData } from '../contexts/UserDataContext';
 import { useArena } from '../contexts/ArenaContext';
 import { showAlert, readFileAsString, readFileAsBase64 } from '../utils/crossPlatform';
@@ -228,6 +229,14 @@ export default function OnboardingScreen() {
 
       // Reload user data context
       await reloadUserData();
+
+      // Sync arena spending (in case user joined an arena before uploading)
+      if (syncResult.added > 0 && user) {
+        console.log('Syncing arena spending after onboarding upload...');
+        const allTransactions = await loadTransactionsFromSupabase(user.id);
+        await syncAllArenaSpending(user.id, allTransactions);
+      }
+
       // Navigate to app
       router.replace('/(tabs)');
     } catch (error) {
