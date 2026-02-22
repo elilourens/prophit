@@ -28,10 +28,20 @@ class TTSService {
   private currentSound: Audio.Sound | null = null;
 
   constructor() {
-    // Get API key from environment
-    this.apiKey = Constants.expoConfig?.extra?.ELEVENLABS_API_KEY ||
-                  process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY ||
-                  null;
+    // API key is resolved lazily in getApiKey() since env vars
+    // may not be available at import/construction time
+  }
+
+  /**
+   * Get the API key, resolving lazily from environment if needed
+   */
+  private getApiKey(): string | null {
+    if (!this.apiKey) {
+      this.apiKey = Constants.expoConfig?.extra?.ELEVENLABS_API_KEY ||
+        process.env.EXPO_PUBLIC_ELEVENLABS_API_KEY ||
+        null;
+    }
+    return this.apiKey;
   }
 
   /**
@@ -45,14 +55,15 @@ class TTSService {
    * Check if the service is configured with an API key
    */
   isConfigured(): boolean {
-    return !!this.apiKey;
+    return !!this.getApiKey();
   }
 
   /**
    * Generate speech from text using ElevenLabs API
    */
   async generateSpeech(text: string, options: TTSOptions = {}): Promise<TTSResult> {
-    if (!this.apiKey) {
+    const key = this.getApiKey();
+    if (!key) {
       throw new Error('ElevenLabs API key not configured. Set EXPO_PUBLIC_ELEVENLABS_API_KEY in your .env file.');
     }
 
@@ -71,7 +82,7 @@ class TTSService {
         headers: {
           'Accept': 'audio/mpeg',
           'Content-Type': 'application/json',
-          'xi-api-key': this.apiKey,
+          'xi-api-key': key,
         },
         body: JSON.stringify({
           text,
