@@ -20,6 +20,7 @@ import { syncAllArenaSpending } from '../services/arenaSyncService';
 import { useUserData } from '../contexts/UserDataContext';
 import { useArena } from '../contexts/ArenaContext';
 import { showAlert, readFileAsString, readFileAsBase64 } from '../utils/crossPlatform';
+import sampleTransactions from '../assets/sample-transactions.json';
 
 const { width } = Dimensions.get('window');
 
@@ -149,11 +150,40 @@ export default function OnboardingScreen() {
     setSelectedSource(source);
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (step === 0 && selectedSource) {
       if (selectedSource === 'demo') {
-        // Use demo data - just go to app (no data to upload)
-        router.replace('/(tabs)');
+        // Load sample demo data
+        if (!user) {
+          showAlert('Error', 'Please log in first');
+          return;
+        }
+
+        setIsUploading(true);
+        setUploadMessage('Loading sample data...');
+
+        try {
+          const transactions = sampleTransactions.transactions;
+          console.log('Loading', transactions.length, 'sample transactions...');
+
+          const syncResult = await syncUploadedDataToSupabase(user.id, transactions);
+          console.log(`Synced: ${syncResult.added} new, ${syncResult.skipped} duplicates`);
+
+          await reloadUserData();
+
+          // Sync arena spending
+          if (syncResult.added > 0) {
+            const allTransactions = await loadTransactionsFromSupabase(user.id);
+            await syncAllArenaSpending(user.id, allTransactions);
+          }
+
+          router.replace('/(tabs)');
+        } catch (error) {
+          console.error('Error loading sample data:', error);
+          showAlert('Error', 'Failed to load sample data');
+        } finally {
+          setIsUploading(false);
+        }
       } else {
         // Go to upload step
         setStep(1);
