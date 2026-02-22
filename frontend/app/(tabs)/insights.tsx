@@ -19,11 +19,7 @@ import { SpendTrajectory } from '../../components/SpendTrajectory';
 import { usePro } from '../../contexts/ProContext';
 import { useUserData } from '../../contexts/UserDataContext';
 import { LockedFeatureModal, ProBadge } from '../../components/LockedFeatureModal';
-import {
-  getRunwayAnalysis,
-  getTransactionAnalysis,
-  getDemoTransactionData,
-} from '../../services/backendApi';
+import { getDemoTransactionData } from '../../services/backendApi';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -47,108 +43,80 @@ const DEFAULT_DATA = {
 };
 
 const DEFAULT_WEEKLY_RECAP = {
-  accuracyPercentage: 78,
-  predictedSpend: 485,
-  actualSpend: 512,
+  thisWeekSpend: 512,
+  lastWeekSpend: 485,
+  changePercent: 5.6,
+  topMerchants: [] as { name: string; amount: number; count: number }[],
   highlights: [
-    { text: 'Correctly predicted 3/4 coffee runs', isPositive: true },
-    { text: 'Caught Friday drinks spending', isPositive: true },
-    { text: 'Missed grocery trip on Tuesday', isPositive: false },
+    { text: 'Upload your bank statement for personalized insights', isPositive: true },
   ],
-  aiInsight: 'Your spending was 6% higher than predicted. Rain on Thursday led to 2 unexpected Uber rides.',
+  insight: 'Upload your transactions to see weekly spending analysis.',
 };
 
-// Accuracy Ring Component
-interface AccuracyRingProps {
-  percentage: number;
-  label?: string;
+// Week Comparison Component
+interface WeekComparisonProps {
+  thisWeek: number;
+  lastWeek: number;
+  changePercent: number;
 }
 
-const AccuracyRing: React.FC<AccuracyRingProps> = ({
-  percentage,
-  label = 'Prediction Accuracy',
+const WeekComparison: React.FC<WeekComparisonProps> = ({
+  thisWeek,
+  lastWeek,
+  changePercent,
 }) => {
-  const size = Math.min(SCREEN_WIDTH * 0.4, 140);
-  const STROKE_WIDTH = 10;
-  const RADIUS = (size - STROKE_WIDTH) / 2;
-  const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-
-  const clampedPercentage = Math.min(Math.max(percentage, 0), 100);
-  const progress = clampedPercentage / 100;
-  const strokeDashoffset = CIRCUMFERENCE * (1 - progress);
+  const isUp = changePercent > 0;
+  const isSignificant = Math.abs(changePercent) > 5;
 
   return (
-    <View style={styles.ringContainer}>
-      <Svg width={size} height={size}>
-        <Defs>
-          <LinearGradient id="accuracyGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <Stop offset="0%" stopColor={theme.colors.neonYellow} />
-            <Stop offset="100%" stopColor={theme.colors.deepTeal} />
-          </LinearGradient>
-        </Defs>
-
-        {/* Background circle */}
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={RADIUS}
-          stroke={theme.colors.lightGray}
-          strokeWidth={STROKE_WIDTH}
-          fill="transparent"
-        />
-
-        {/* Progress circle */}
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={RADIUS}
-          stroke="url(#accuracyGradient)"
-          strokeWidth={STROKE_WIDTH}
-          fill="transparent"
-          strokeDasharray={CIRCUMFERENCE}
-          strokeDashoffset={strokeDashoffset}
-          strokeLinecap="round"
-          transform={`rotate(-90, ${size / 2}, ${size / 2})`}
-        />
-      </Svg>
-
-      <View style={styles.ringTextContainer}>
-        <Text style={styles.ringPercentage}>{Math.round(clampedPercentage)}%</Text>
-        <Text style={styles.ringLabel}>{label}</Text>
+    <View style={styles.weekComparisonContainer}>
+      <View style={styles.weekColumn}>
+        <Text style={styles.weekLabel}>THIS WEEK</Text>
+        <Text style={styles.weekAmount}>€{thisWeek}</Text>
       </View>
-    </View>
-  );
-};
 
-// Prediction Comparison Component
-interface PredictionComparisonProps {
-  predicted: number;
-  actual: number;
-}
-
-const PredictionComparison: React.FC<PredictionComparisonProps> = ({
-  predicted,
-  actual,
-}) => {
-  const difference = actual - predicted;
-  const isOver = difference > 0;
-
-  return (
-    <View style={styles.comparisonRow}>
-      <View style={styles.comparisonColumn}>
-        <Text style={styles.comparisonLabel}>PREDICTED</Text>
-        <Text style={styles.comparisonPredicted}>€{predicted}</Text>
-      </View>
-      <Text style={styles.vsText}>vs</Text>
-      <View style={styles.comparisonColumn}>
-        <Text style={styles.comparisonLabel}>ACTUAL</Text>
-        <Text style={[styles.comparisonActual, isOver && styles.overBudget]}>
-          €{actual}
+      <View style={styles.changeIndicator}>
+        <Ionicons
+          name={isUp ? 'arrow-up' : 'arrow-down'}
+          size={24}
+          color={isUp ? theme.colors.hotCoral : theme.colors.deepTeal}
+        />
+        <Text style={[
+          styles.changePercent,
+          { color: isUp ? theme.colors.hotCoral : theme.colors.deepTeal }
+        ]}>
+          {isUp ? '+' : ''}{changePercent}%
         </Text>
       </View>
+
+      <View style={styles.weekColumn}>
+        <Text style={styles.weekLabel}>LAST WEEK</Text>
+        <Text style={styles.weekAmountSecondary}>€{lastWeek}</Text>
+      </View>
     </View>
   );
 };
+
+// Top Merchant Row
+interface TopMerchantProps {
+  rank: number;
+  name: string;
+  amount: number;
+  count: number;
+}
+
+const TopMerchantRow: React.FC<TopMerchantProps> = ({ rank, name, amount, count }) => (
+  <View style={styles.merchantRow}>
+    <View style={styles.merchantRank}>
+      <Text style={styles.merchantRankText}>{rank}</Text>
+    </View>
+    <View style={styles.merchantInfo}>
+      <Text style={styles.merchantName} numberOfLines={1}>{name}</Text>
+      <Text style={styles.merchantCount}>{count}x this week</Text>
+    </View>
+    <Text style={styles.merchantAmount}>€{amount.toFixed(0)}</Text>
+  </View>
+);
 
 // Highlight Item Component
 interface HighlightItemProps {
@@ -193,8 +161,7 @@ export default function InsightsScreen() {
   const { isPro } = usePro();
   const { userDataset, isDataLoaded } = useUserData();
   const [showLockedModal, setShowLockedModal] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [aiInsight, setAiInsight] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   // Calculate all data from user's dataset
   const {
@@ -282,22 +249,93 @@ export default function InsightsScreen() {
       labels.push(monthNames[d.getMonth()]);
     }
 
-    // Calculate weekly recap accuracy (comparing predictions vs actual)
-    const thisWeekSpend = summary.weeklyAverages[0]?.amount || 400;
-    const lastWeekSpend = summary.weeklyAverages[1]?.amount || 380;
-    const accuracyPercentage = Math.min(95, Math.max(60, 85 - Math.abs(thisWeekSpend - lastWeekSpend) / 10));
+    // Calculate actual weekly spending from transactions
+    const now = new Date();
+    const oneWeekAgo = new Date(now);
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const twoWeeksAgo = new Date(now);
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+    // This week's transactions
+    const thisWeekTxns = transactions.filter(t => {
+      const d = new Date(t.date);
+      return t.amount < 0 && d >= oneWeekAgo && d <= now;
+    });
+    const thisWeekSpend = thisWeekTxns.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+    // Last week's transactions
+    const lastWeekTxns = transactions.filter(t => {
+      const d = new Date(t.date);
+      return t.amount < 0 && d >= twoWeeksAgo && d < oneWeekAgo;
+    });
+    const lastWeekSpend = lastWeekTxns.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+    // Calculate week-over-week change
+    const changePercent = lastWeekSpend > 0
+      ? ((thisWeekSpend - lastWeekSpend) / lastWeekSpend) * 100
+      : 0;
+
+    // Get top merchants this week
+    const merchantTotals: { [name: string]: { amount: number; count: number } } = {};
+    thisWeekTxns.forEach(t => {
+      const name = t.description || 'Unknown';
+      if (!merchantTotals[name]) {
+        merchantTotals[name] = { amount: 0, count: 0 };
+      }
+      merchantTotals[name].amount += Math.abs(t.amount);
+      merchantTotals[name].count += 1;
+    });
+
+    const topMerchants = Object.entries(merchantTotals)
+      .map(([name, data]) => ({ name, ...data }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5);
+
+    // Generate meaningful highlights
+    const highlights: { text: string; isPositive: boolean }[] = [];
+
+    if (changePercent < -10) {
+      highlights.push({ text: `Spent ${Math.abs(changePercent).toFixed(0)}% less than last week`, isPositive: true });
+    } else if (changePercent > 10) {
+      highlights.push({ text: `Spent ${changePercent.toFixed(0)}% more than last week`, isPositive: false });
+    } else {
+      highlights.push({ text: 'Spending consistent with last week', isPositive: true });
+    }
+
+    if (topMerchants[0]) {
+      highlights.push({
+        text: `Most spent at: ${topMerchants[0].name} (€${topMerchants[0].amount.toFixed(0)})`,
+        isPositive: true,
+      });
+    }
+
+    const avgTransaction = thisWeekTxns.length > 0 ? thisWeekSpend / thisWeekTxns.length : 0;
+    highlights.push({
+      text: `${thisWeekTxns.length} transactions, avg €${avgTransaction.toFixed(0)} each`,
+      isPositive: true,
+    });
+
+    // Generate insight based on actual data
+    let insight = '';
+    if (thisWeekTxns.length === 0) {
+      insight = 'No transactions this week yet. Check back later for insights.';
+    } else if (changePercent > 20) {
+      insight = `Your spending increased significantly this week. ${topMerchants[0]?.name || 'Your top merchant'} was your biggest expense at €${topMerchants[0]?.amount.toFixed(0) || '0'}.`;
+    } else if (changePercent < -20) {
+      insight = `Great job cutting back! You spent ${Math.abs(changePercent).toFixed(0)}% less than last week. Keep up the momentum.`;
+    } else {
+      insight = `Steady week with €${thisWeekSpend.toFixed(0)} total spending across ${thisWeekTxns.length} transactions. ${topMerchants[0] ? `${topMerchants[0].name} was your most frequent spend.` : ''}`;
+    }
 
     // Calculate seasonal divisors based on actual data range
-    // For limited data, just use what we have
-    const winterMonthCount = Math.max(1, Math.ceil(dataRange * (4 / 12))); // ~4 winter months per year
-    const summerMonthCount = Math.max(1, Math.ceil(dataRange * (4 / 12))); // ~4 summer months per year
+    const winterMonthCount = Math.max(1, Math.ceil(dataRange * (4 / 12)));
+    const summerMonthCount = Math.max(1, Math.ceil(dataRange * (4 / 12)));
 
     return {
       runwayMonths: summary.runwayMonths,
       savings: summary.savings,
       monthlyBurn: Math.round(summary.avgMonthly),
       seasonal: {
-        // Use actual data range for divisor instead of hardcoded 8
         winterSpend: Math.round(winterTotal / winterMonthCount) || DEFAULT_DATA.seasonal.winterSpend,
         summerSpend: Math.round(summerTotal / summerMonthCount) || DEFAULT_DATA.seasonal.summerSpend,
       },
@@ -309,59 +347,16 @@ export default function InsightsScreen() {
         labels: labels,
       },
       weeklyRecap: {
-        accuracyPercentage: Math.round(accuracyPercentage),
-        predictedSpend: Math.round(lastWeekSpend),
-        actualSpend: Math.round(thisWeekSpend),
-        highlights: [
-          { text: `Top category: ${summary.topCategories[0]}`, isPositive: true },
-          { text: trend === 'decreasing' ? 'Spending trending down' : trend === 'increasing' ? 'Spending trending up' : 'Stable spending', isPositive: trend !== 'increasing' },
-          { text: `Savings rate: ${summary.savingsRate}%`, isPositive: summary.savingsRate > 15 },
-        ],
-        aiInsight: `Your ${summary.topCategories[0]} spending makes up the largest portion of your budget. ${trend === 'decreasing' ? 'Great progress reducing spending!' : trend === 'increasing' ? 'Consider reviewing discretionary expenses.' : 'Your habits are consistent.'}`,
+        thisWeekSpend: Math.round(thisWeekSpend),
+        lastWeekSpend: Math.round(lastWeekSpend),
+        changePercent: Math.round(changePercent),
+        topMerchants,
+        highlights,
+        insight,
       },
     };
   }, [userDataset]);
 
-  useEffect(() => {
-    if (isDataLoaded) {
-      fetchAdditionalInsights();
-    }
-  }, [isDataLoaded]);
-
-  const fetchAdditionalInsights = async () => {
-    setIsLoading(true);
-    try {
-      if (!userDataset) return;
-
-      const demoData = getDemoTransactionData();
-
-      // Fetch AI analysis for enhanced insights
-      const analysisResult = await getTransactionAnalysis(demoData);
-      if (analysisResult.claudeAnalysis) {
-        const insight = extractInsightFromAnalysis(analysisResult.claudeAnalysis);
-        setAiInsight(insight);
-      }
-    } catch (error) {
-      console.error('Failed to fetch insights data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Extract a useful insight from the AI analysis
-  const extractInsightFromAnalysis = (analysis: string): string => {
-    // Try to find a key insight sentence
-    const sentences = analysis.split(/[.!?]+/).filter(s => s.trim().length > 20);
-    if (sentences.length > 0) {
-      // Find sentence with keywords
-      const keywords = ['spend', 'saving', 'budget', 'pattern', 'trend', 'increase', 'decrease'];
-      const insightSentence = sentences.find(s =>
-        keywords.some(k => s.toLowerCase().includes(k))
-      );
-      return (insightSentence || sentences[0]).trim().slice(0, 150) + '...';
-    }
-    return DEFAULT_WEEKLY_RECAP.aiInsight;
-  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -466,7 +461,14 @@ export default function InsightsScreen() {
                 <Text style={styles.sectionTitle}>Weekly Recap</Text>
                 {!isPro && <ProBadge />}
               </View>
-              <Text style={styles.recapDateRange}>Feb 14 - Feb 21, 2026</Text>
+              <Text style={styles.recapDateRange}>
+                {(() => {
+                  const now = new Date();
+                  const weekAgo = new Date(now);
+                  weekAgo.setDate(weekAgo.getDate() - 7);
+                  return `${weekAgo.toLocaleDateString('en-IE', { month: 'short', day: 'numeric' })} - ${now.toLocaleDateString('en-IE', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+                })()}
+              </Text>
 
               {!isPro ? (
                 <TouchableOpacity
@@ -480,7 +482,7 @@ export default function InsightsScreen() {
                     </View>
                     <Text style={styles.lockedTitle}>Unlock Weekly Recap</Text>
                     <Text style={styles.lockedText}>
-                      See prediction accuracy and get AI insights
+                      See spending comparisons and insights
                     </Text>
                     <View style={styles.unlockButton}>
                       <Text style={styles.unlockButtonText}>Upgrade to Pro</Text>
@@ -489,19 +491,31 @@ export default function InsightsScreen() {
                 </TouchableOpacity>
               ) : (
                 <View style={styles.card}>
-                  {/* Accuracy Ring */}
-                  <View style={styles.recapAccuracySection}>
-                    <AccuracyRing percentage={weeklyRecap.accuracyPercentage} />
-                  </View>
-
-                  {/* Predicted vs Actual */}
+                  {/* Week Comparison */}
                   <View style={styles.recapComparisonSection}>
-                    <Text style={styles.cardSubtitle}>Predicted vs Actual</Text>
-                    <PredictionComparison
-                      predicted={weeklyRecap.predictedSpend}
-                      actual={weeklyRecap.actualSpend}
+                    <Text style={styles.cardSubtitle}>Week-over-Week</Text>
+                    <WeekComparison
+                      thisWeek={weeklyRecap.thisWeekSpend}
+                      lastWeek={weeklyRecap.lastWeekSpend}
+                      changePercent={weeklyRecap.changePercent}
                     />
                   </View>
+
+                  {/* Top Merchants */}
+                  {weeklyRecap.topMerchants && weeklyRecap.topMerchants.length > 0 && (
+                    <View style={styles.recapMerchantsSection}>
+                      <Text style={styles.cardSubtitle}>Top Spending</Text>
+                      {weeklyRecap.topMerchants.slice(0, 3).map((merchant, index) => (
+                        <TopMerchantRow
+                          key={index}
+                          rank={index + 1}
+                          name={merchant.name}
+                          amount={merchant.amount}
+                          count={merchant.count}
+                        />
+                      ))}
+                    </View>
+                  )}
 
                   {/* Weekly Highlights */}
                   <View style={styles.recapHighlightsSection}>
@@ -515,8 +529,8 @@ export default function InsightsScreen() {
                     ))}
                   </View>
 
-                  {/* AI Insight */}
-                  <InsightCard insight={aiInsight || weeklyRecap.aiInsight} />
+                  {/* Insight */}
+                  <InsightCard insight={weeklyRecap.insight} />
                 </View>
               )}
             </View>
@@ -696,78 +710,91 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.colors.white,
   },
-  // Accuracy Ring styles
-  ringContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  ringTextContainer: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ringPercentage: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: theme.colors.deepNavy,
-  },
-  ringLabel: {
-    fontSize: 10,
-    fontWeight: '500',
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-    maxWidth: 70,
-    marginTop: 2,
-  },
   // Weekly Recap sections
-  recapAccuracySection: {
-    alignItems: 'center',
-    paddingVertical: theme.spacing.md,
-    marginBottom: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.lightGray,
-  },
   recapComparisonSection: {
     paddingBottom: theme.spacing.md,
     marginBottom: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.lightGray,
   },
-  comparisonRow: {
+  weekComparisonContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: theme.spacing.sm,
+    marginTop: theme.spacing.md,
   },
-  comparisonColumn: {
+  weekColumn: {
     flex: 1,
     alignItems: 'center',
   },
-  comparisonLabel: {
-    fontSize: 11,
-    fontWeight: '500',
+  weekLabel: {
+    fontSize: 10,
+    fontWeight: '600',
     color: theme.colors.textSecondary,
     letterSpacing: 0.5,
     marginBottom: theme.spacing.xs,
   },
-  comparisonPredicted: {
-    fontSize: 22,
+  weekAmount: {
+    fontSize: 24,
     fontWeight: '700',
     color: theme.colors.deepNavy,
   },
-  comparisonActual: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: theme.colors.deepNavy,
+  weekAmountSecondary: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: theme.colors.gray,
   },
-  overBudget: {
-    color: theme.colors.midOrange,
+  changeIndicator: {
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.md,
   },
-  vsText: {
+  changePercent: {
     fontSize: 14,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  recapMerchantsSection: {
+    paddingBottom: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.lightGray,
+  },
+  merchantRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.sm,
+  },
+  merchantRank: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: theme.colors.softWhite,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: theme.spacing.sm,
+  },
+  merchantRankText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.colors.deepNavy,
+  },
+  merchantInfo: {
+    flex: 1,
+  },
+  merchantName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.deepNavy,
+  },
+  merchantCount: {
+    fontSize: 11,
     color: theme.colors.textSecondary,
-    paddingHorizontal: theme.spacing.sm,
+    marginTop: 1,
+  },
+  merchantAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.deepNavy,
   },
   recapHighlightsSection: {
     marginBottom: theme.spacing.md,

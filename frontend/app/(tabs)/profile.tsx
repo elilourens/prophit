@@ -1,13 +1,16 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { theme } from '../../components/theme';
 import { usePro } from '../../contexts/ProContext';
 import { useArena } from '../../contexts/ArenaContext';
 import { useSolana } from '../../contexts/SolanaContext';
-import { DEMO_TRANSACTIONS } from '../../services/backendApi';
+import { useUserData } from '../../contexts/UserDataContext';
+import { DEMO_TRANSACTIONS, setUseUploadedData, isUsingUploadedData } from '../../services/backendApi';
 import { showAlert, copyToClipboard } from '../../utils/crossPlatform';
 
 /**
@@ -65,11 +68,59 @@ export default function ProfileScreen() {
   const { isPro } = usePro();
   const { user, isAuthenticated, signOut, myArenas } = useArena();
   const { wallet } = useSolana();
+  const { reloadUserData, userDataset } = useUserData();
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleCopyAddress = async () => {
     if (wallet) {
       await copyToClipboard(wallet.publicKey);
       showAlert('Copied', 'Wallet address copied to clipboard');
+    }
+  };
+
+  const handleUploadStatement = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'application/json', 'text/csv', 'text/plain'],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets?.[0]) {
+        return;
+      }
+
+      const file = result.assets[0];
+      setIsUploading(true);
+
+      // Read file content
+      let fileContent: string;
+      const isPDF = file.name?.toLowerCase().endsWith('.pdf');
+
+      if (isPDF) {
+        const base64Content = await FileSystem.readAsStringAsync(file.uri, {
+          encoding: 'base64' as any,
+        });
+        fileContent = `data:application/pdf;base64,${base64Content}`;
+      } else {
+        fileContent = await FileSystem.readAsStringAsync(file.uri, {
+          encoding: 'utf8' as any,
+        });
+      }
+
+      // Process the upload
+      const success = await setUseUploadedData(true, fileContent, isPDF ? file.uri : undefined);
+
+      if (success) {
+        await reloadUserData();
+        showAlert('Success', 'Your bank statement has been uploaded and processed!');
+      } else {
+        showAlert('Upload Failed', 'Could not extract transactions from your file. Please try a different format.');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      showAlert('Error', 'Failed to upload file. Please try again.');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -249,6 +300,36 @@ export default function ProfileScreen() {
             label="Account status"
             value="Verified"
           />
+        </View>
+
+        {/* Data Management */}
+        <View style={styles.dataCard}>
+          <Text style={styles.sectionTitle}>Your Data</Text>
+          <View style={styles.dataInfo}>
+            <Ionicons name="document-text-outline" size={20} color={theme.colors.deepTeal} />
+            <Text style={styles.dataInfoText}>
+              {isUsingUploadedData() && userDataset
+                ? `${userDataset.transactions.length} transactions loaded`
+                : 'Using demo data'}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.uploadButton}
+            onPress={handleUploadStatement}
+            disabled={isUploading}
+          >
+            {isUploading ? (
+              <ActivityIndicator size="small" color={theme.colors.white} />
+            ) : (
+              <>
+                <Ionicons name="cloud-upload-outline" size={20} color={theme.colors.white} />
+                <Text style={styles.uploadButtonText}>
+                  {isUsingUploadedData() ? 'Upload New Statement' : 'Upload Bank Statement'}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+          <Text style={styles.uploadHint}>Supports PDF, JSON, CSV</Text>
         </View>
 
         {/* Actions */}
@@ -517,6 +598,44 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 80,
+  },
+  // Data Management Card
+  dataCard: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+    ...theme.cardShadow,
+  },
+  dataInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+  },
+  dataInfoText: {
+    fontSize: 14,
+    color: theme.colors.deepNavy,
+  },
+  uploadButton: {
+    backgroundColor: theme.colors.deepTeal,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+  },
+  uploadButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.white,
+  },
+  uploadHint: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginTop: theme.spacing.sm,
   },
   // Wallet Card
   walletCard: {
