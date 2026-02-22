@@ -166,21 +166,8 @@ export const MorningBriefing: React.FC<MorningBriefingProps> = ({
         <View style={styles.accentBar} />
 
       <View style={styles.content}>
-        {/* Greeting */}
-        <Text style={styles.greeting}>
-          {greeting}, {userName}!
-        </Text>
-
-        {/* Weather Summary */}
-        <View style={styles.weatherRow}>
-          <Text style={styles.weatherIcon}>{weatherSymbol}</Text>
-          <Text style={styles.weatherText}>
-            {temperature}°C, {location}
-          </Text>
-        </View>
-
-        {/* Divider */}
-        <View style={styles.divider} />
+        {/* Card Title */}
+        <Text style={styles.cardTitle}>Today's Briefing</Text>
 
         {/* Top Prediction */}
         <View style={styles.predictionRow}>
@@ -256,27 +243,9 @@ const styles = StyleSheet.create({
   content: {
     padding: theme.spacing.md,
   },
-  greeting: {
+  cardTitle: {
     ...theme.typography.subheader,
     color: theme.colors.deepNavy,
-    marginBottom: theme.spacing.sm,
-  },
-  weatherRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: theme.spacing.md,
-  },
-  weatherIcon: {
-    fontSize: 20,
-    marginRight: theme.spacing.sm,
-  },
-  weatherText: {
-    ...theme.typography.body,
-    color: theme.colors.textSecondary,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: theme.colors.probabilityBarBackground,
     marginBottom: theme.spacing.md,
   },
   predictionRow: {
