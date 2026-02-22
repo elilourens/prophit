@@ -568,14 +568,14 @@ export default function ArenaDetailScreen() {
             <View style={styles.mySpendingCard}>
               <View style={styles.mySpendingHeader}>
                 <Ionicons name="wallet-outline" size={24} color={theme.colors.deepTeal} />
-                <Text style={styles.mySpendingTitle}>Your Arena Spending</Text>
+                <Text style={styles.mySpendingTitle}>{currentArena.mode === 'savings_sprint' ? 'Your Savings' : 'Your Arena Spending'}</Text>
               </View>
               <View style={styles.mySpendingContent}>
                 <Text style={styles.mySpendingAmount}>
                   €{mySpending.toFixed(2)}
                 </Text>
                 <Text style={styles.mySpendingLimit}>
-                  / €{currentArena.target_amount} limit
+                  / €{currentArena.target_amount} {currentArena.mode === 'savings_sprint' ? 'goal' : 'limit'}
                 </Text>
               </View>
               <ProgressBar
@@ -587,8 +587,8 @@ export default function ArenaDetailScreen() {
                 style={styles.logTransactionButton}
                 onPress={handleLogTransaction}
               >
-                <Ionicons name="add-circle-outline" size={18} color={theme.colors.deepTeal} />
-                <Text style={styles.logTransactionText}>Log Transaction</Text>
+                <Ionicons name={currentArena.mode === 'savings_sprint' ? 'cash-outline' : 'add-circle-outline'} size={18} color={theme.colors.deepTeal} />
+                <Text style={styles.logTransactionText}>{currentArena.mode === 'savings_sprint' ? 'Add Saved Money' : 'Log Transaction'}</Text>
               </TouchableOpacity>
             </View>
           )}
