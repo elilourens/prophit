@@ -19,7 +19,8 @@ import { theme } from '../components/theme';
 import { useUserData } from '../contexts/UserDataContext';
 import { useArena } from '../contexts/ArenaContext';
 import { categorizeTransaction, parseFileToTransactions, parsePDFToTransactions } from '../services/backendApi';
-import { syncUploadedDataToSupabase } from '../services/transactionSyncService';
+import { syncUploadedDataToSupabase, loadTransactionsFromSupabase } from '../services/transactionSyncService';
+import { syncAllArenaSpending } from '../services/arenaSyncService';
 import { showAlert, readFileAsString, readFileAsBase64 } from '../utils/crossPlatform';
 
 // Common merchants for autocomplete
@@ -46,7 +47,7 @@ const CATEGORIES = [
 ];
 
 export default function AddTransactionScreen() {
-  const { addTransaction, reloadUserData } = useUserData();
+  const { addTransaction, reloadUserData, userDataset } = useUserData();
   const { user } = useArena();
 
   // Form state - expenses only (for arena tracking)
@@ -128,6 +129,13 @@ export default function AddTransactionScreen() {
 
       // Reload user data from Supabase
       await reloadUserData();
+
+      // Sync arena spending with ALL transactions (load fresh from Supabase)
+      console.log('Syncing arena spending after file upload...');
+      const allTransactions = await loadTransactionsFromSupabase(user.id);
+      console.log('Loaded', allTransactions.length, 'total transactions for arena sync');
+      await syncAllArenaSpending(user.id, allTransactions);
+      console.log('Arena sync complete');
 
       showAlert('Success', `${syncResult.added} new transactions imported!${syncResult.skipped > 0 ? ` (${syncResult.skipped} duplicates skipped)` : ''}`);
       router.canGoBack() ? router.back() : router.replace('/(tabs)/history');
