@@ -10,7 +10,8 @@ import { usePro } from '../../contexts/ProContext';
 import { useArena } from '../../contexts/ArenaContext';
 import { useSolana } from '../../contexts/SolanaContext';
 import { useUserData } from '../../contexts/UserDataContext';
-import { DEMO_TRANSACTIONS, setUseUploadedData, isUsingUploadedData } from '../../services/backendApi';
+import { DEMO_TRANSACTIONS, setUseUploadedData, isUsingUploadedData, clearAllTransactionData } from '../../services/backendApi';
+import { clearAllTransactions } from '../../services/transactionSyncService';
 import { showAlert, copyToClipboard } from '../../utils/crossPlatform';
 
 /**
@@ -150,6 +151,29 @@ export default function ProfileScreen() {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleClearData = async () => {
+    showAlert(
+      'Clear All Data',
+      'This will delete all your transaction data. Use this before uploading fresh data for demos.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear Data',
+          style: 'destructive',
+          onPress: async () => {
+            await clearAllTransactionData();
+            // Also clear from Supabase if user is logged in
+            if (user) {
+              await clearAllTransactions(user.id);
+            }
+            await reloadUserData();
+            showAlert('Cleared', 'All transaction data has been cleared. You can now upload fresh data.');
+          },
+        },
+      ]
+    );
   };
 
   const handleLogout = () => {
@@ -358,6 +382,15 @@ export default function ProfileScreen() {
             )}
           </TouchableOpacity>
           <Text style={styles.uploadHint}>Supports PDF, JSON, CSV</Text>
+
+          {/* Clear Data Button */}
+          <TouchableOpacity
+            style={styles.clearDataButton}
+            onPress={handleClearData}
+          >
+            <Ionicons name="trash-outline" size={18} color={theme.colors.hotCoral} />
+            <Text style={styles.clearDataText}>Clear All Data</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Actions */}
@@ -664,6 +697,19 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     textAlign: 'center',
     marginTop: theme.spacing.sm,
+  },
+  clearDataButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    gap: theme.spacing.xs,
+  },
+  clearDataText: {
+    fontSize: 14,
+    color: theme.colors.hotCoral,
+    fontWeight: '500',
   },
   // Wallet Card
   walletCard: {

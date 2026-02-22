@@ -1114,6 +1114,20 @@ export function clearUserData(): void {
 }
 
 /**
+ * Clear ALL transaction data (local storage + memory)
+ * Use this before uploading fresh data for demos
+ */
+export async function clearAllTransactionData(): Promise<void> {
+  cachedUserDataset = null;
+  useUploadedData = false;
+  uploadedFileContent = null;
+  await AsyncStorage.removeItem(UPLOADED_DATA_KEY);
+  await AsyncStorage.removeItem(USING_UPLOADED_KEY);
+  await AsyncStorage.removeItem('@prophit_user_dataset_id');
+  console.log('Cleared all transaction data');
+}
+
+/**
  * Update the cached user dataset with a new dataset
  * Used when transactions are added/removed
  */
@@ -1370,4 +1384,5 @@ export default {
   updateCachedUserDataset,
   addTransactionToDataset,
   removeTransactionFromDataset,
+  clearAllTransactionData,
 };
