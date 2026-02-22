@@ -4,6 +4,7 @@ import { User, Arena, ArenaMember, ArenaWithMembers, ArenaMemberWithUser } from 
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { Transaction } from '../services/fakeDatasets';
 import { syncMemberSpending, calculateArenaPeriodSpend } from '../services/arenaSyncService';
+import { determineWinner as determineArenaWinner } from '../services/arenaSettlementService';
 
 interface ArenaContextType {
   // User state
@@ -21,7 +22,7 @@ interface ArenaContextType {
   currentArena: ArenaWithMembers | null;
 
   // Arena methods
-  createArena: (name: string, mode: string, targetAmount: number, stakeAmount?: number) => Promise<Arena>;
+  createArena: (name: string, mode: string, targetAmount: number, stakeAmount?: number, endsAt?: string) => Promise<Arena>;
   joinArena: (joinCode: string) => Promise<Arena>;
   fetchArenaByCode: (joinCode: string) => Promise<ArenaWithMembers | null>;
   fetchArenaById: (id: string) => Promise<ArenaWithMembers | null>;
@@ -221,7 +222,8 @@ export const ArenaProvider: React.FC<ArenaProviderProps> = ({ children }) => {
     name: string,
     mode: string,
     targetAmount: number,
-    stakeAmount?: number
+    stakeAmount?: number,
+    endsAt?: string
   ): Promise<Arena> => {
     if (!user) throw new Error('Must be signed in');
 
@@ -237,6 +239,7 @@ export const ArenaProvider: React.FC<ArenaProviderProps> = ({ children }) => {
         created_by: user.id,
         stake_amount: stakeAmount || null,
         status: 'active', // Start as active immediately
+        ends_at: endsAt || null,
       })
       .select()
       .single();
@@ -414,7 +417,9 @@ export const ArenaProvider: React.FC<ArenaProviderProps> = ({ children }) => {
       arenaId,
       user.id,
       transactions,
-      arena.created_at
+      arena.created_at,
+      arena.target_amount,
+      arena.mode
     );
 
     if (result.success) {
@@ -428,34 +433,10 @@ export const ArenaProvider: React.FC<ArenaProviderProps> = ({ children }) => {
   };
 
   /**
-   * Determine the winner of an arena based on mode
+   * Determine the winner of an arena based on mode (uses centralized settlement logic)
    */
   const getArenaWinner = (arena: ArenaWithMembers): ArenaMemberWithUser | null => {
-    const members = arena.arena_members || [];
-    if (members.length === 0) return null;
-
-    // Filter out eliminated members
-    const activemembers = members.filter(m => !m.is_eliminated);
-    if (activemembers.length === 0) return null;
-
-    // Sort based on mode
-    const sorted = [...activemembers].sort((a, b) => {
-      switch (arena.mode) {
-        case 'budget_guardian':
-          // Lowest spend under target wins
-          return a.current_spend - b.current_spend;
-        case 'vice_streak':
-          // Lowest spend in target category wins
-          return a.current_spend - b.current_spend;
-        case 'savings_sprint':
-          // Highest savings wins
-          return b.current_savings - a.current_savings;
-        default:
-          return a.current_spend - b.current_spend;
-      }
-    });
-
-    return sorted[0];
+    return determineArenaWinner(arena);
   };
 
   /**

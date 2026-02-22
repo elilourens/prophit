@@ -56,6 +56,14 @@ const MODES: ModeOption[] = [
   },
 ];
 
+type DurationOption = '1_week' | '2_weeks' | '1_month' | 'custom';
+
+const DURATION_OPTIONS: { id: DurationOption; label: string; days: number }[] = [
+  { id: '1_week', label: '1 Week', days: 7 },
+  { id: '2_weeks', label: '2 Weeks', days: 14 },
+  { id: '1_month', label: '1 Month', days: 30 },
+];
+
 export default function CreateArenaScreen() {
   const { createArena } = useArena();
   const { wallet, isInitialized, createArenaEscrow, requestAirdrop, getExplorerUrl } = useSolana();
@@ -63,6 +71,7 @@ export default function CreateArenaScreen() {
   const [selectedMode, setSelectedMode] = useState<ArenaMode | null>(null);
   const [arenaName, setArenaName] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
+  const [selectedDuration, setSelectedDuration] = useState<DurationOption>('1_week');
   const [stakeEnabled, setStakeEnabled] = useState(false);
   const [stakeAmount, setStakeAmount] = useState('');
   const [showWalletModal, setShowWalletModal] = useState(false);
@@ -92,12 +101,18 @@ export default function CreateArenaScreen() {
 
     setIsCreating(true);
     try {
+      // Calculate end date based on selected duration
+      const durationDays = DURATION_OPTIONS.find(d => d.id === selectedDuration)?.days || 7;
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + durationDays);
+
       // First create the arena in Supabase
       const arena = await createArena(
         arenaName.trim(),
         selectedMode,
         parseFloat(targetAmount),
-        stakeEnabled ? parseFloat(stakeAmount) : undefined
+        stakeEnabled ? parseFloat(stakeAmount) : undefined,
+        endDate.toISOString()
       );
 
       // If stakes are enabled, create the escrow on Solana
@@ -249,6 +264,35 @@ export default function CreateArenaScreen() {
             {selectedMode === 'savings_sprint'
               ? 'First to save this amount wins'
               : 'First to exceed this amount loses'}
+          </Text>
+        </View>
+
+        {/* Duration */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Arena Duration</Text>
+          <View style={styles.durationContainer}>
+            {DURATION_OPTIONS.map((option) => (
+              <TouchableOpacity
+                key={option.id}
+                style={[
+                  styles.durationOption,
+                  selectedDuration === option.id && styles.durationOptionSelected,
+                ]}
+                onPress={() => setSelectedDuration(option.id)}
+              >
+                <Text
+                  style={[
+                    styles.durationOptionText,
+                    selectedDuration === option.id && styles.durationOptionTextSelected,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={styles.inputHint}>
+            Arena ends {DURATION_OPTIONS.find(d => d.id === selectedDuration)?.days || 7} days from creation
           </Text>
         </View>
 
@@ -575,6 +619,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.textSecondary,
     marginTop: theme.spacing.sm,
+  },
+  durationContainer: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  durationOption: {
+    flex: 1,
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    ...theme.cardShadow,
+  },
+  durationOptionSelected: {
+    borderColor: theme.colors.hotCoral,
+    backgroundColor: theme.colors.hotCoral + '10',
+  },
+  durationOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.textSecondary,
+  },
+  durationOptionTextSelected: {
+    color: theme.colors.hotCoral,
   },
   nextButton: {
     backgroundColor: theme.colors.hotCoral,

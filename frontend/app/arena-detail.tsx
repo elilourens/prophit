@@ -23,6 +23,7 @@ import { useSolana } from '../contexts/SolanaContext';
 import { ArenaMemberWithUser } from '../types/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { calculateArenaPeriodSpend } from '../services/arenaSyncService';
+import { canSettleArena, getSettlementBlockReason, allMembersSynced } from '../services/arenaSettlementService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -559,14 +560,46 @@ export default function ArenaDetailScreen() {
             </TouchableOpacity>
           )}
 
+          {/* Sync Status Card */}
+          {currentArena.status === 'active' && !allMembersSynced(currentArena) && (
+            <View style={styles.syncWarningCard}>
+              <Ionicons name="sync-outline" size={20} color={theme.colors.midOrange} />
+              <Text style={styles.syncWarningText}>
+                {getSettlementBlockReason(currentArena) || 'Waiting for all members to sync'}
+              </Text>
+            </View>
+          )}
+
+          {/* Arena End Date */}
+          {currentArena.ends_at && currentArena.status === 'active' && (
+            <View style={styles.endDateCard}>
+              <Ionicons name="calendar-outline" size={20} color={theme.colors.deepTeal} />
+              <Text style={styles.endDateText}>
+                Ends: {new Date(currentArena.ends_at).toLocaleDateString('en-IE', {
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </Text>
+            </View>
+          )}
+
           {/* End Arena Button (Creator Only) */}
           {currentArena.status === 'active' && currentArena.created_by === user?.id && (
             <TouchableOpacity
-              style={styles.endArenaButton}
+              style={[
+                styles.endArenaButton,
+                !canSettleArena(currentArena) && styles.endArenaButtonDisabled
+              ]}
               onPress={handleEndArena}
+              disabled={!canSettleArena(currentArena)}
             >
               <Ionicons name="flag" size={20} color={theme.colors.white} />
-              <Text style={styles.endArenaButtonText}>End Arena & Settle</Text>
+              <Text style={styles.endArenaButtonText}>
+                {canSettleArena(currentArena) ? 'End Arena & Settle' : 'Waiting for Sync...'}
+              </Text>
             </TouchableOpacity>
           )}
 
@@ -1286,6 +1319,37 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: theme.colors.deepTeal,
   },
+  // Sync Warning Card
+  syncWarningCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    backgroundColor: theme.colors.midOrange + '15',
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+  },
+  syncWarningText: {
+    flex: 1,
+    fontSize: 13,
+    color: theme.colors.midOrange,
+    fontWeight: '500',
+  },
+  // End Date Card
+  endDateCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    backgroundColor: theme.colors.deepTeal + '15',
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+  },
+  endDateText: {
+    fontSize: 14,
+    color: theme.colors.deepTeal,
+    fontWeight: '500',
+  },
   // End Arena Button
   endArenaButton: {
     flexDirection: 'row',
@@ -1296,6 +1360,10 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.md,
     paddingVertical: theme.spacing.md,
     marginBottom: theme.spacing.lg,
+  },
+  endArenaButtonDisabled: {
+    backgroundColor: theme.colors.gray,
+    opacity: 0.7,
   },
   endArenaButtonText: {
     fontSize: 16,

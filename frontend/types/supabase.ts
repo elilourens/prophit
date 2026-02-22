@@ -78,6 +78,9 @@ export interface Database {
           current_savings: number;
           is_eliminated: boolean;
           joined_at: string;
+          budget_exceeded_at: string | null;
+          target_reached_at: string | null;
+          last_synced_at: string;
         };
         Insert: {
           id?: string;
@@ -87,6 +90,9 @@ export interface Database {
           current_savings?: number;
           is_eliminated?: boolean;
           joined_at?: string;
+          budget_exceeded_at?: string | null;
+          target_reached_at?: string | null;
+          last_synced_at?: string;
         };
         Update: {
           id?: string;
@@ -96,6 +102,9 @@ export interface Database {
           current_savings?: number;
           is_eliminated?: boolean;
           joined_at?: string;
+          budget_exceeded_at?: string | null;
+          target_reached_at?: string | null;
+          last_synced_at?: string;
         };
       };
       arena_bets: {

@@ -71,37 +71,124 @@ export function calculateArenaPeriodSpend(
   };
 }
 
+export interface SyncResult {
+  success: boolean;
+  newSpend: number;
+  budgetExceeded: boolean;
+  targetReached: boolean;
+  error?: string;
+}
+
 /**
  * Sync member's spending to Supabase for a specific arena
+ * Also tracks when budget is exceeded or target is reached for timestamp-based winner determination
  */
 export async function syncMemberSpending(
   arenaId: string,
   userId: string,
   transactions: Transaction[],
-  arenaCreatedAt: string
-): Promise<{ success: boolean; newSpend: number; error?: string }> {
+  arenaCreatedAt: string,
+  targetAmount?: number,
+  mode?: string
+): Promise<SyncResult> {
   try {
     const arenaStart = new Date(arenaCreatedAt);
     const spending = calculateArenaPeriodSpend(transactions, arenaStart);
 
+    // Get current member data to check existing timestamps
+    const { data: currentMember } = await supabase
+      .from('arena_members')
+      .select('budget_exceeded_at, target_reached_at')
+      .eq('arena_id', arenaId)
+      .eq('user_id', userId)
+      .single();
+
+    // Prepare update data
+    const updateData: Record<string, any> = {
+      current_spend: spending.totalSpend,
+      last_synced_at: new Date().toISOString(),
+    };
+
+    let budgetExceeded = false;
+    let targetReached = false;
+
+    // Check if budget was exceeded for the first time (Budget Guardian & Vice Streak modes)
+    if (targetAmount && (mode === 'budget_guardian' || mode === 'vice_streak')) {
+      const memberBudgetExceededAt = currentMember?.budget_exceeded_at ?? null;
+      if (spending.totalSpend > targetAmount && !memberBudgetExceededAt) {
+        // Find the exact transaction that pushed over the limit
+        const exceededTimestamp = findBudgetExceededTimestamp(transactions, arenaStart, targetAmount);
+        updateData.budget_exceeded_at = exceededTimestamp;
+        budgetExceeded = true;
+        console.log(`Budget exceeded at ${exceededTimestamp} for user ${userId}`);
+      }
+    }
+
+    // Check if savings target was reached for the first time (Savings Sprint mode)
+    if (targetAmount && mode === 'savings_sprint') {
+      // For savings sprint, current_spend actually tracks savings
+      // TODO: Implement proper savings tracking
+      const memberTargetReachedAt = currentMember?.target_reached_at ?? null;
+      if (spending.totalSpend >= targetAmount && !memberTargetReachedAt) {
+        updateData.target_reached_at = new Date().toISOString();
+        targetReached = true;
+        console.log(`Target reached for user ${userId}`);
+      }
+    }
+
     // Update the arena_members table
     const { error } = await supabase
       .from('arena_members')
-      .update({ current_spend: spending.totalSpend } as any)
+      .update(updateData)
       .eq('arena_id', arenaId)
       .eq('user_id', userId);
 
     if (error) {
       console.error('Error syncing arena spending:', error);
-      return { success: false, newSpend: spending.totalSpend, error: error.message };
+      return { success: false, newSpend: spending.totalSpend, budgetExceeded, targetReached, error: error.message };
     }
 
     console.log(`Synced spending for arena ${arenaId}: €${spending.totalSpend}`);
-    return { success: true, newSpend: spending.totalSpend };
+    return { success: true, newSpend: spending.totalSpend, budgetExceeded, targetReached };
   } catch (error: any) {
     console.error('Error in syncMemberSpending:', error);
-    return { success: false, newSpend: 0, error: error.message };
+    return { success: false, newSpend: 0, budgetExceeded: false, targetReached: false, error: error.message };
   }
+}
+
+/**
+ * Find the exact timestamp when budget was exceeded by examining transactions in order
+ */
+function findBudgetExceededTimestamp(
+  transactions: Transaction[],
+  arenaStart: Date,
+  targetAmount: number
+): string {
+  // Filter and sort transactions by date/timestamp
+  const periodTransactions = transactions
+    .filter(t => {
+      const txnDate = new Date(t.date);
+      return txnDate >= arenaStart && t.amount < 0 && t.category !== 'Transfer' && t.category !== 'Income';
+    })
+    .sort((a, b) => {
+      // Sort by timestamp if available, otherwise by date
+      const aTime = a.timestamp ? new Date(a.timestamp).getTime() : new Date(a.date).getTime();
+      const bTime = b.timestamp ? new Date(b.timestamp).getTime() : new Date(b.date).getTime();
+      return aTime - bTime;
+    });
+
+  // Find the transaction that pushed the total over the limit
+  let runningTotal = 0;
+  for (const txn of periodTransactions) {
+    runningTotal += Math.abs(txn.amount);
+    if (runningTotal > targetAmount) {
+      // Return the timestamp of this transaction
+      return txn.timestamp || `${txn.date}T12:00:00Z`;
+    }
+  }
+
+  // Fallback to current time if somehow we can't find it
+  return new Date().toISOString();
 }
 
 /**
@@ -123,7 +210,9 @@ export async function syncAllArenaSpending(
         arenas (
           id,
           created_at,
-          status
+          status,
+          mode,
+          target_amount
         )
       `)
       .eq('user_id', userId);
@@ -141,7 +230,9 @@ export async function syncAllArenaSpending(
           arena.id,
           userId,
           transactions,
-          arena.created_at
+          arena.created_at,
+          arena.target_amount,
+          arena.mode
         );
         if (result.success) {
           synced++;
