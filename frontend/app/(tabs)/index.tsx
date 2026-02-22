@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, StyleSheet, Text, SafeAreaView, ActivityIndicator } from 'react-native';
+import { View, ScrollView, StyleSheet, Text, SafeAreaView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { WeatherHeader } from '../../components/WeatherHeader';
 import { MorningBriefing } from '../../components/MorningBriefing';
 import { PredictionCard, Prediction } from '../../components/PredictionCard';
@@ -124,13 +125,10 @@ export default function HomeScreen() {
     try {
       // Use user's actual transaction data
       if (!userDataset?.transactions || userDataset.transactions.length === 0) {
-        console.log('No transactions available, using defaults');
-        const defaults = getDefaultPredictions();
-        setPredictions(defaults);
-        setTopPrediction({
-          title: defaults[0].title,
-          probability: defaults[0].probability,
-        });
+        console.log('No transactions available');
+        setPredictions([]);
+        setTopPrediction(null);
+        setIsLoading(false);
         return;
       }
 
@@ -151,22 +149,14 @@ export default function HomeScreen() {
           });
         }
       } else {
-        console.log('No predictions from backend, using defaults');
-        const defaults = getDefaultPredictions();
-        setPredictions(defaults);
-        setTopPrediction({
-          title: defaults[0].title,
-          probability: defaults[0].probability,
-        });
+        console.log('No predictions from backend');
+        setPredictions([]);
+        setTopPrediction(null);
       }
     } catch (error) {
       console.error('Failed to fetch predictions:', error);
-      const defaults = getDefaultPredictions();
-      setPredictions(defaults);
-      setTopPrediction({
-        title: defaults[0].title,
-        probability: defaults[0].probability,
-      });
+      setPredictions([]);
+      setTopPrediction(null);
     } finally {
       setIsLoading(false);
     }
@@ -221,6 +211,23 @@ export default function HomeScreen() {
               <ActivityIndicator size="large" color={theme.colors.hotCoral} />
               <Text style={styles.loadingText}>Analyzing your spending patterns...</Text>
             </View>
+          ) : predictions.length === 0 ? (
+            <View style={styles.emptyStateContainer}>
+              <View style={styles.emptyStateIcon}>
+                <Ionicons name="wallet-outline" size={48} color={theme.colors.deepTeal} />
+              </View>
+              <Text style={styles.emptyStateTitle}>No Transaction Data</Text>
+              <Text style={styles.emptyStateText}>
+                Upload your bank statement or add transactions to see personalized spending predictions.
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyStateButton}
+                onPress={() => router.push('/add-transaction')}
+              >
+                <Ionicons name="add-circle-outline" size={20} color={theme.colors.white} />
+                <Text style={styles.emptyStateButtonText}>Add Transactions</Text>
+              </TouchableOpacity>
+            </View>
           ) : (
             predictions.map((prediction) => (
               <PredictionCard key={prediction.id} prediction={prediction} />
@@ -262,5 +269,48 @@ const styles = StyleSheet.create({
     marginTop: theme.spacing.md,
     fontSize: 14,
     color: theme.colors.textSecondary,
+  },
+  emptyStateContainer: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.xl,
+    alignItems: 'center',
+    ...theme.cardShadow,
+  },
+  emptyStateIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: theme.colors.deepTeal + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: theme.spacing.lg,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.deepNavy,
+    marginBottom: theme.spacing.sm,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: theme.spacing.lg,
+    lineHeight: 20,
+  },
+  emptyStateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.hotCoral,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    gap: theme.spacing.sm,
+  },
+  emptyStateButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.white,
   },
 });

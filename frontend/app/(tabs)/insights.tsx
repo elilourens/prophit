@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
+import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
@@ -163,6 +164,9 @@ export default function InsightsScreen() {
   const [showLockedModal, setShowLockedModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Check if user has data
+  const hasData = userDataset && userDataset.transactions && userDataset.transactions.length > 0;
+
   // Calculate all data from user's dataset
   const {
     runwayMonths,
@@ -174,16 +178,23 @@ export default function InsightsScreen() {
     dataRangeMonths,
     hasLimitedData,
   } = useMemo(() => {
-    if (!userDataset) {
+    if (!userDataset || !userDataset.transactions || userDataset.transactions.length === 0) {
       return {
-        runwayMonths: DEFAULT_DATA.runway.months,
-        savings: DEFAULT_DATA.savings,
-        monthlyBurn: DEFAULT_DATA.monthlyBurn,
-        seasonal: DEFAULT_DATA.seasonal,
-        trajectory: DEFAULT_DATA.trajectory,
-        weeklyRecap: DEFAULT_WEEKLY_RECAP,
-        dataRangeMonths: 24,
-        hasLimitedData: false,
+        runwayMonths: 0,
+        savings: 0,
+        monthlyBurn: 0,
+        seasonal: { winterSpend: 0, summerSpend: 0 },
+        trajectory: { historical: [], projected: [], labels: [] },
+        weeklyRecap: {
+          thisWeekSpend: 0,
+          lastWeekSpend: 0,
+          changePercent: 0,
+          topMerchants: [],
+          highlights: [],
+          insight: '',
+        },
+        dataRangeMonths: 0,
+        hasLimitedData: true,
       };
     }
 
@@ -384,10 +395,27 @@ export default function InsightsScreen() {
             <ActivityIndicator size="large" color={theme.colors.hotCoral} />
             <Text style={styles.loadingText}>Analyzing your financial data...</Text>
           </View>
+        ) : !hasData ? (
+          <View style={styles.emptyStateContainer}>
+            <View style={styles.emptyStateIcon}>
+              <Ionicons name="analytics-outline" size={48} color={theme.colors.deepTeal} />
+            </View>
+            <Text style={styles.emptyStateTitle}>No Data Available</Text>
+            <Text style={styles.emptyStateText}>
+              Upload your bank statement to see financial runway, seasonal patterns, and spending insights.
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyStateButton}
+              onPress={() => router.push('/add-transaction')}
+            >
+              <Ionicons name="cloud-upload-outline" size={20} color={theme.colors.white} />
+              <Text style={styles.emptyStateButtonText}>Upload Transactions</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
           <>
             {/* Limited Data Notice */}
-            {hasLimitedData && (
+            {hasLimitedData && dataRangeMonths > 0 && (
               <View style={styles.limitedDataBanner}>
                 <Ionicons name="information-circle" size={20} color={theme.colors.deepTeal} />
                 <Text style={styles.limitedDataText}>
@@ -864,5 +892,49 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.colors.deepNavy,
     lineHeight: 18,
+  },
+  emptyStateContainer: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.xl,
+    alignItems: 'center',
+    marginTop: theme.spacing.lg,
+    ...theme.cardShadow,
+  },
+  emptyStateIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: theme.colors.deepTeal + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: theme.spacing.lg,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.deepNavy,
+    marginBottom: theme.spacing.sm,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: theme.spacing.lg,
+    lineHeight: 20,
+  },
+  emptyStateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.hotCoral,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    gap: theme.spacing.sm,
+  },
+  emptyStateButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.white,
   },
 });
