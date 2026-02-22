@@ -3,7 +3,8 @@
  *
  * Wraps the FastAPI backend at https://prophit-ashy.vercel.app
  * Endpoints:
- * - POST /analyse - Transaction analysis (file upload)
+ * - POST /parse-pdf - Parse PDF and return transactions as JSON
+ * - POST /analyse - Transaction analysis (file upload, returns HTML)
  * - POST /week-ahead - Calendar predictions (file upload)
  * - POST /budget-tips?text=... - Budget tips
  * - POST /financial-summary - Financial summary (file upload)
@@ -180,7 +181,7 @@ export async function setUseUploadedData(value: boolean, fileContent?: string, f
 
 /**
  * Send PDF to backend for parsing and extract transactions
- * Uses the FastAPI /analyse endpoint
+ * Uses the FastAPI /parse-pdf endpoint which returns JSON transactions
  * @param base64Content - Base64 encoded PDF content with data URI prefix
  * @param fileUri - Optional file URI for React Native (avoids Blob creation)
  */
@@ -209,11 +210,11 @@ async function parsePDFViaBackend(base64Content: string, fileUri?: string): Prom
       formData.append('file', blob, 'statement.pdf');
     }
 
-    console.log('Uploading PDF to backend /analyse...');
+    console.log('Uploading PDF to backend /parse-pdf...');
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 90000);
 
-    const response = await fetch(`${BASE_URL}/analyse`, {
+    const response = await fetch(`${BASE_URL}/parse-pdf`, {
       method: 'POST',
       body: formData,
       signal: controller.signal,
@@ -222,26 +223,24 @@ async function parsePDFViaBackend(base64Content: string, fileUri?: string): Prom
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      console.error('PDF analysis failed:', response.status);
+      console.error('PDF parsing failed:', response.status);
       const errorText = await response.text();
       console.error('Error:', errorText);
       return null;
     }
 
     const result = await response.json();
-    console.log('Analyse result:', JSON.stringify(result).substring(0, 500));
+    console.log('Parse-pdf result:', JSON.stringify(result).substring(0, 500));
 
-    // The /analyse endpoint returns analysis results
-    // We need to extract transactions from it
+    // The /parse-pdf endpoint returns: { transactions: [...], summary: {...} }
     let transactions: Transaction[] = [];
 
-    // Check various possible response formats
     if (result.transactions && Array.isArray(result.transactions)) {
       transactions = result.transactions.map(normalizeTransaction);
-    } else if (result.parsed_transactions && Array.isArray(result.parsed_transactions)) {
-      transactions = result.parsed_transactions.map(normalizeTransaction);
-    } else if (Array.isArray(result)) {
-      transactions = result.map(normalizeTransaction);
+    }
+
+    if (result.error) {
+      console.warn('Backend returned error:', result.error);
     }
 
     if (transactions.length > 0) {
@@ -250,14 +249,13 @@ async function parsePDFViaBackend(base64Content: string, fileUri?: string): Prom
       return { id: -1, transactions, summary };
     } else {
       console.warn('No transactions found in response');
-      // Maybe the response has the analysis text - log it for debugging
       console.log('Full response:', JSON.stringify(result));
     }
 
     return null;
   } catch (error: any) {
     if (error.name === 'AbortError') {
-      console.error('PDF analysis timed out');
+      console.error('PDF parsing timed out');
     } else {
       console.error('Error in parsePDFViaBackend:', error);
     }

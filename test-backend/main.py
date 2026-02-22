@@ -1010,6 +1010,40 @@ async def health():
     }
 
 
+@app.post("/parse-pdf", tags=["llm"])
+async def parse_pdf_endpoint(file: UploadFile = File(...)):
+    """
+    Parse a PDF bank statement and return transactions as JSON.
+    Uses LLM to extract structured transaction data.
+
+    Returns:
+    {
+        "transactions": [
+            {"date": "YYYY-MM-DD", "description": "...", "amount": -XX.XX, "category": "..."},
+            ...
+        ],
+        "summary": {
+            "total_transactions": N,
+            "total_spent": XX.XX,
+            "total_income": XX.XX,
+            "date_range": {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"}
+        }
+    }
+    """
+    raw = await file.read()
+    filename = file.filename or "file.pdf"
+
+    # Check if it's a PDF
+    if not filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported for transaction extraction")
+
+    try:
+        result = await parse_pdf_to_transactions(raw)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF parsing failed: {e}")
+
+
 @app.post("/analyse", tags=["llm"])
 async def analyse(file: UploadFile = File(...)):
     """
