@@ -795,21 +795,23 @@ export async function getWeekAheadPredictions(transactions: Transaction[]): Prom
     }
 
     // Create a JSON file for the FastAPI endpoint
-    const jsonContent = JSON.stringify({ transactions });
+    // Format: array of transactions with date, description, amount, category
+    const jsonContent = JSON.stringify(transactions);
     const blob = new Blob([jsonContent], { type: 'application/json' });
     const formData = new FormData();
     formData.append('file', blob, 'transactions.json');
 
     console.log('Calling /week-ahead with', transactions.length, 'transactions...');
 
-    // Call the FastAPI endpoint
-    const response = await fetch(`${BASE_URL}/week-ahead`, {
+    // Call the FastAPI endpoint with Dublin coordinates
+    const response = await fetch(`${BASE_URL}/week-ahead?lat=53.3498&lon=-6.2603&country_code=IE`, {
       method: 'POST',
       body: formData,
     });
 
     if (!response.ok) {
-      console.error('Week-ahead request failed:', response.status);
+      const errorText = await response.text();
+      console.error('Week-ahead request failed:', response.status, errorText);
       return { predictions: [], judgeOutput: null };
     }
 
