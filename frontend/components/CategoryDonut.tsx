@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import Svg, { Path, G, Text as SvgText } from 'react-native-svg';
+import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
+import Svg, { Path, G } from 'react-native-svg';
 import { theme } from './theme';
 
 interface CategoryData {
@@ -14,12 +14,13 @@ interface CategoryDonutProps {
   size?: number;
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 export const CategoryDonut: React.FC<CategoryDonutProps> = ({
   data,
-  size = Math.min(SCREEN_WIDTH * 0.5, 200)
+  size: sizeProp
 }) => {
+  const { width: windowWidth } = useWindowDimensions();
+  // Fit within viewport: leave room for card padding and avoid overflow on narrow screens
+  const size = sizeProp ?? Math.min(windowWidth - 96, 200);
   // Guard against empty data
   if (!data || data.length === 0) {
     return (

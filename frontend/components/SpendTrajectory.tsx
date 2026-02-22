@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import Svg, { Path, Line, Circle, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { theme } from './theme';
 
@@ -9,8 +9,6 @@ interface SpendTrajectoryProps {
   labels?: string[];
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CHART_WIDTH = SCREEN_WIDTH - 64;
 const CHART_HEIGHT = 180;
 const PADDING_LEFT = 50;
 const PADDING_RIGHT = 20;
@@ -22,12 +20,15 @@ export const SpendTrajectory: React.FC<SpendTrajectoryProps> = ({
   projectedData,
   labels = ['Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May']
 }) => {
+  const { width: windowWidth } = useWindowDimensions();
+  const chartWidth = Math.max(260, windowWidth - 96);
+
   const allData = [...historicalData, ...projectedData];
   const maxValue = Math.max(...allData) * 1.1;
   const minValue = Math.min(...allData) * 0.9;
   const range = maxValue - minValue;
 
-  const graphWidth = CHART_WIDTH - PADDING_LEFT - PADDING_RIGHT;
+  const graphWidth = chartWidth - PADDING_LEFT - PADDING_RIGHT;
   const graphHeight = CHART_HEIGHT - PADDING_TOP - PADDING_BOTTOM;
 
   const getX = (index: number) => {
@@ -63,8 +64,8 @@ export const SpendTrajectory: React.FC<SpendTrajectoryProps> = ({
   };
 
   return (
-    <View style={styles.container}>
-      <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
+    <View style={[styles.container, { maxWidth: '100%' }]}>
+      <Svg width={chartWidth} height={CHART_HEIGHT}>
         <Defs>
           <LinearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
             <Stop offset="0%" stopColor={theme.colors.hotCoral} />
@@ -80,7 +81,7 @@ export const SpendTrajectory: React.FC<SpendTrajectoryProps> = ({
               <Line
                 x1={PADDING_LEFT}
                 y1={y}
-                x2={CHART_WIDTH - PADDING_RIGHT}
+                x2={chartWidth - PADDING_RIGHT}
                 y2={y}
                 stroke={theme.colors.lightGray}
                 strokeWidth={1}

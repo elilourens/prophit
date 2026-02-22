@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { theme } from './theme';
 
 interface SeasonalBarsProps {
@@ -7,17 +7,13 @@ interface SeasonalBarsProps {
   summerSpend: number;
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const BAR_MAX_WIDTH = SCREEN_WIDTH - 120;
-
 export const SeasonalBars: React.FC<SeasonalBarsProps> = ({
   winterSpend,
   summerSpend
 }) => {
-  const maxSpend = Math.max(winterSpend, summerSpend);
-
-  const winterWidth = (winterSpend / maxSpend) * BAR_MAX_WIDTH;
-  const summerWidth = (summerSpend / maxSpend) * BAR_MAX_WIDTH;
+  const maxSpend = Math.max(winterSpend, summerSpend, 1);
+  const winterPct = (winterSpend / maxSpend) * 100;
+  const summerPct = (summerSpend / maxSpend) * 100;
 
   const formatCurrency = (value: number) => {
     return `€${value.toLocaleString('en-EU')}`;
@@ -36,7 +32,7 @@ export const SeasonalBars: React.FC<SeasonalBarsProps> = ({
             style={[
               styles.bar,
               styles.winterBar,
-              { width: winterWidth }
+              { width: `${winterPct}%` }
             ]}
           />
         </View>
@@ -53,7 +49,7 @@ export const SeasonalBars: React.FC<SeasonalBarsProps> = ({
             style={[
               styles.bar,
               styles.summerBar,
-              { width: summerWidth }
+              { width: `${summerPct}%` }
             ]}
           />
         </View>
