@@ -10,8 +10,8 @@ import { usePro } from '../../contexts/ProContext';
 import { useArena } from '../../contexts/ArenaContext';
 import { useSolana } from '../../contexts/SolanaContext';
 import { useUserData } from '../../contexts/UserDataContext';
-import { DEMO_TRANSACTIONS, setUseUploadedData, isUsingUploadedData, clearAllTransactionData } from '../../services/backendApi';
-import { clearAllTransactions } from '../../services/transactionSyncService';
+import { DEMO_TRANSACTIONS, setUseUploadedData, isUsingUploadedData, clearAllTransactionData, getCachedUserDataset } from '../../services/backendApi';
+import { clearAllTransactions, syncUploadedDataToSupabase } from '../../services/transactionSyncService';
 import { showAlert, copyToClipboard } from '../../utils/crossPlatform';
 
 /**
@@ -140,6 +140,12 @@ export default function ProfileScreen() {
       const success = await setUseUploadedData(true, fileContent, isPDF ? file.uri : undefined);
 
       if (success) {
+        // Sync to Supabase so it persists
+        const parsedDataset = getCachedUserDataset();
+        if (parsedDataset && parsedDataset.transactions.length > 0 && user) {
+          console.log('Syncing', parsedDataset.transactions.length, 'transactions to Supabase...');
+          await syncUploadedDataToSupabase(user.id, parsedDataset.transactions);
+        }
         await reloadUserData();
         showAlert('Success', 'Your bank statement has been uploaded and processed!');
       } else {

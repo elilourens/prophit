@@ -81,8 +81,8 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
     try {
       setIsDataLoaded(false);
 
-      // PRIORITY 1: Check Supabase for synced transactions (persists across devices)
-      console.log('Checking Supabase for synced transactions...');
+      // Only check Supabase for transactions - that's the single source of truth
+      console.log('Checking Supabase for transactions...');
       const supabaseDataset = await loadUserDatasetFromSupabase(userId);
       if (supabaseDataset && supabaseDataset.transactions.length > 0) {
         console.log('Loaded', supabaseDataset.transactions.length, 'transactions from Supabase');
@@ -91,43 +91,13 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
         return;
       }
 
-      // PRIORITY 2: Try to restore uploaded data from local storage (survives app reload)
-      const restoredUploaded = await restoreUploadedData();
-      if (restoredUploaded) {
-        const uploadedDataset = getCachedUserDataset();
-        if (uploadedDataset && uploadedDataset.transactions.length > 0) {
-          console.log('Using restored uploaded data:', uploadedDataset.transactions.length, 'transactions');
-          // Sync to Supabase for persistence across devices
-          await syncUploadedDataToSupabase(userId, uploadedDataset.transactions);
-          setUserDataset(uploadedDataset);
-          setIsDataLoaded(true);
-          return;
-        }
-      }
-
-      // PRIORITY 3: If user uploaded their own data (PDF/CSV) in memory, use that
-      if (isUsingUploadedData()) {
-        const uploadedDataset = getCachedUserDataset();
-        if (uploadedDataset && uploadedDataset.transactions.length > 0) {
-          console.log('Using uploaded user data instead of fake dataset');
-          // Sync to Supabase
-          await syncUploadedDataToSupabase(userId, uploadedDataset.transactions);
-          setUserDataset(uploadedDataset);
-          setIsDataLoaded(true);
-          return;
-        }
-      }
-
-      // No data found - user needs to upload data or has cleared their data
-      // Don't auto-assign mock data anymore
+      // No data found - user needs to upload data
       console.log('No transaction data found - user needs to upload data');
       setUserDataset(null);
       setIsDataLoaded(true);
     } catch (error) {
       console.error('Error loading user dataset:', error);
-      // Fall back to default dataset
-      initUserData(1);
-      setUserDataset(getCachedUserDataset());
+      setUserDataset(null);
       setIsDataLoaded(true);
     }
   };
@@ -194,46 +164,13 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
   };
 
   const reloadUserData = async () => {
-    // First try to restore from storage
-    const restoredUploaded = await restoreUploadedData();
-    if (restoredUploaded) {
-      const uploadedDataset = getCachedUserDataset();
-      if (uploadedDataset && uploadedDataset.transactions.length > 0) {
-        console.log('Reloaded uploaded data from storage');
-        setUserDataset(uploadedDataset);
-        setIsDataLoaded(true);
-        setTransactionsUpdatedAt(Date.now());
-        // Sync to Supabase in background
-        if (user) {
-          syncUploadedDataToSupabase(user.id, uploadedDataset.transactions).then(result => {
-            console.log(`Synced to Supabase: ${result.added} new, ${result.skipped} skipped`);
-          }).catch(err => {
-            console.error('Failed to sync to Supabase:', err);
-          });
-        }
-        return;
-      }
-    }
-    // If using uploaded data in memory, just refresh from cache
-    if (isUsingUploadedData()) {
-      const uploadedDataset = getCachedUserDataset();
-      if (uploadedDataset && uploadedDataset.transactions.length > 0) {
-        setUserDataset(uploadedDataset);
-        setIsDataLoaded(true);
-        setTransactionsUpdatedAt(Date.now());
-        // Sync to Supabase in background
-        if (user) {
-          syncUploadedDataToSupabase(user.id, uploadedDataset.transactions).then(result => {
-            console.log(`Synced to Supabase: ${result.added} new, ${result.skipped} skipped`);
-          }).catch(err => {
-            console.error('Failed to sync to Supabase:', err);
-          });
-        }
-        return;
-      }
-    }
+    // Just reload from the main loader which checks Supabase first
     if (user) {
       await loadOrAssignDataset(user.id);
+      setTransactionsUpdatedAt(Date.now());
+    } else {
+      setUserDataset(null);
+      setIsDataLoaded(true);
     }
   };
 
