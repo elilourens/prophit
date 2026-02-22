@@ -782,7 +782,7 @@ export function getCalendarPredictions(transactionData: string): Promise<{
 
 /**
  * Get week-ahead predictions from backend multi-LLM judge consensus
- * Calls the /calendar_uploaded endpoint and parses judge_output
+ * Calls the /week-ahead FastAPI endpoint
  */
 export async function getWeekAheadPredictions(transactions: Transaction[]): Promise<{
   predictions: CalendarPrediction[];
@@ -794,52 +794,26 @@ export async function getWeekAheadPredictions(transactions: Transaction[]): Prom
       return { predictions: [], judgeOutput: null };
     }
 
-    // Create a JSON file-like content for the API
+    // Create a JSON file for the FastAPI endpoint
     const jsonContent = JSON.stringify({ transactions });
     const blob = new Blob([jsonContent], { type: 'application/json' });
     const formData = new FormData();
     formData.append('file', blob, 'transactions.json');
 
-    console.log('Calling /calendar_uploaded with', transactions.length, 'transactions...');
+    console.log('Calling /week-ahead with', transactions.length, 'transactions...');
 
-    // Call the Gradio API pattern
-    const submitRes = await fetch(`${BASE_URL}/gradio_api/call/calendar_uploaded`, {
+    // Call the FastAPI endpoint
+    const response = await fetch(`${BASE_URL}/week-ahead`, {
       method: 'POST',
       body: formData,
     });
 
-    if (!submitRes.ok) {
-      console.error('Calendar submit failed:', submitRes.status);
+    if (!response.ok) {
+      console.error('Week-ahead request failed:', response.status);
       return { predictions: [], judgeOutput: null };
     }
 
-    const { event_id } = await submitRes.json();
-    console.log('Got event_id:', event_id);
-
-    // Get the result (SSE stream)
-    const resultRes = await fetch(`${BASE_URL}/gradio_api/call/calendar_uploaded/${event_id}`);
-    const text = await resultRes.text();
-
-    // Parse SSE response - look for data: line after event: complete
-    const lines = text.split('\n');
-    let resultData: any = null;
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].startsWith('data: ')) {
-        try {
-          resultData = JSON.parse(lines[i].replace('data: ', ''));
-        } catch (e) {
-          // Not valid JSON, continue
-        }
-      }
-    }
-
-    if (!resultData || !Array.isArray(resultData)) {
-      console.error('Invalid response format');
-      return { predictions: [], judgeOutput: null };
-    }
-
-    // Result format: [calendar_markdown, raw_json_with_judge_output]
-    const rawJson = resultData[1];
+    const rawJson = await response.json();
     console.log('Raw JSON preview:', JSON.stringify(rawJson).substring(0, 500));
 
     // Extract judge_output from the response
