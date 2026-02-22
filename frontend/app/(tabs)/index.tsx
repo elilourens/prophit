@@ -103,7 +103,7 @@ function getDefaultPredictions(): Prediction[] {
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useArena();
-  const { isDataLoaded } = useUserData();
+  const { isDataLoaded, userDataset } = useUserData();
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [topPrediction, setTopPrediction] = useState<{ title: string; probability: number } | null>(null);
@@ -121,8 +121,11 @@ export default function HomeScreen() {
   const fetchPredictions = async () => {
     setIsLoading(true);
     try {
-      const demoData = getDemoTransactionData();
-      const result = await getCalendarPredictions(demoData);
+      // Use user's actual data if available, otherwise use demo data
+      const transactionData = userDataset?.transactions && userDataset.transactions.length > 0
+        ? JSON.stringify({ transactions: userDataset.transactions })
+        : getDemoTransactionData();
+      const result = await getCalendarPredictions(transactionData);
 
       if (result.predictions && result.predictions.length > 0) {
         const converted = convertToPredictions(result.predictions);

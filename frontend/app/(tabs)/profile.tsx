@@ -202,8 +202,11 @@ export default function ProfileScreen() {
 
   // Calculate stats from available data
   const stats = useMemo(() => {
-    // Count predictions based on demo transaction categories
-    const categories = DEMO_TRANSACTIONS.transactions.map(t => t.category);
+    // Use user's actual data if available
+    const transactions = userDataset?.transactions || [];
+
+    // Count predictions based on transaction categories
+    const categories = transactions.map(t => t.category);
     const uniqueCategories = [...new Set(categories)];
     const predictionsThisWeek = uniqueCategories.length * 2; // Estimate based on unique spending categories
 
@@ -213,7 +216,7 @@ export default function ProfileScreen() {
     ).length;
 
     // Streak based on how many days user has transaction data (simplified)
-    const transactionDates = [...new Set(DEMO_TRANSACTIONS.transactions.map(t => t.date))];
+    const transactionDates = [...new Set(transactions.map(t => t.date))];
     const currentStreak = Math.min(transactionDates.length, 7); // Cap at 7 days
 
     return {
@@ -222,7 +225,7 @@ export default function ProfileScreen() {
       totalArenas: myArenas.length,
       winsCount,
     };
-  }, [myArenas, user?.id]);
+  }, [myArenas, user?.id, userDataset]);
 
   // Format date joined
   const dateJoined = user?.created_at
@@ -366,9 +369,9 @@ export default function ProfileScreen() {
           <View style={styles.dataInfo}>
             <Ionicons name="document-text-outline" size={20} color={theme.colors.deepTeal} />
             <Text style={styles.dataInfoText}>
-              {isUsingUploadedData() && userDataset
+              {userDataset && userDataset.transactions.length > 0
                 ? `${userDataset.transactions.length} transactions loaded`
-                : 'Using demo data'}
+                : 'No data - upload a bank statement'}
             </Text>
           </View>
           <TouchableOpacity
