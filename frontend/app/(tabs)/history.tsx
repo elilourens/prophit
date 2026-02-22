@@ -209,7 +209,7 @@ export default function HistoryScreen() {
     const totalLast = lastPeriodTxns.reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
     // Generate alerts based on comparison
-    const alerts: typeof DEFAULT_ALERTS_DATA = [];
+    const alerts: { category: string; percentageChange: number; message: string; severity: 'warning' | 'info' }[] = [];
     const change = totalLast > 0 ? ((totalThis - totalLast) / totalLast) * 100 : 0;
 
     if (change > 10) {
@@ -253,7 +253,7 @@ export default function HistoryScreen() {
     const hasInsufficientData = dataRangeMonths < requiredMonths;
 
     return {
-      categoryData: catData.length > 0 ? catData : DEFAULT_CATEGORY_DATA,
+      categoryData: catData,
       comparisonData: compData,
       alertsData: alerts,
       totalThis: Math.round(totalThis),
@@ -263,9 +263,9 @@ export default function HistoryScreen() {
     } catch (error) {
       console.error('Error calculating history data:', error);
       return {
-        categoryData: DEFAULT_CATEGORY_DATA,
-        comparisonData: DEFAULT_COMPARISON_DATA,
-        alertsData: DEFAULT_ALERTS_DATA,
+        categoryData: [],
+        comparisonData: [],
+        alertsData: [{ category: 'Error', percentageChange: 0, message: 'Could not load spending data', severity: 'warning' as const }],
         totalThis: 0,
         totalLast: 0,
         insufficientData: true,
