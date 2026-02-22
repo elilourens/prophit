@@ -13,10 +13,6 @@ import {
   initUserData,
   clearUserData,
   getCachedUserDataset,
-  isUsingUploadedData,
-  restoreUploadedData,
-  addTransactionToDataset,
-  removeTransactionFromDataset,
   categorizeTransaction,
 } from '../services/backendApi';
 import { UserDataset, Transaction, getRandomAvailableDatasetId, getDatasetById } from '../services/fakeDatasets';
@@ -186,6 +182,11 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
     category?: string;
     timestamp?: string;
   }) => {
+    if (!user) {
+      console.error('No user logged in');
+      return;
+    }
+
     const transaction: Transaction = {
       date: transactionData.date,
       description: transactionData.description,
@@ -194,29 +195,30 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
       timestamp: transactionData.timestamp || new Date().toISOString(),
     };
 
-    // Add to local storage first
-    const updatedDataset = await addTransactionToDataset(transaction);
-    if (updatedDataset) {
-      setUserDataset(updatedDataset);
-      setTransactionsUpdatedAt(Date.now());
-      console.log('Transaction added, updated timestamp:', Date.now());
-    }
+    try {
+      // Save directly to Supabase - this is the source of truth
+      console.log('Saving transaction to Supabase...', transaction);
+      const saved = await saveTransactionToSupabase(user.id, transaction);
 
-    // Sync to Supabase and then sync arena spending
-    if (user) {
-      try {
-        // Save to Supabase first
-        const saved = await saveTransactionToSupabase(user.id, transaction);
-        if (saved) {
-          console.log('Transaction saved to Supabase, syncing arena spending...');
-          // Now sync all arena spending with updated transactions
-          const allTransactions = updatedDataset?.transactions || [];
-          await syncAllArenaSpending(user.id, allTransactions);
+      if (saved) {
+        console.log('Transaction saved! Reloading data...');
+
+        // Reload the dataset from Supabase to get fresh data
+        const freshDataset = await loadUserDatasetFromSupabase(user.id);
+        if (freshDataset) {
+          setUserDataset(freshDataset);
+          setTransactionsUpdatedAt(Date.now());
+
+          // Sync all arena spending with the fresh transactions
+          console.log('Syncing arena spending...');
+          await syncAllArenaSpending(user.id, freshDataset.transactions);
           console.log('Arena spending synced!');
         }
-      } catch (err) {
-        console.error('Failed to sync transaction:', err);
+      } else {
+        console.error('Failed to save transaction to Supabase');
       }
+    } catch (err) {
+      console.error('Failed to add transaction:', err);
     }
   };
 
@@ -224,19 +226,28 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
    * Delete a transaction from the dataset
    */
   const deleteTransaction = async (date: string, description: string, amount: number) => {
-    // Remove from local storage first
-    const updatedDataset = await removeTransactionFromDataset(date, description, amount);
-    if (updatedDataset) {
-      setUserDataset(updatedDataset);
-      setTransactionsUpdatedAt(Date.now());
-      console.log('Transaction deleted, updated timestamp:', Date.now());
+    if (!user) {
+      console.error('No user logged in');
+      return;
     }
 
-    // Sync to Supabase (async, don't block UI)
-    if (user) {
-      deleteTransactionFromSupabase(user.id, date, description, amount).catch(err => {
-        console.error('Failed to delete transaction from Supabase:', err);
-      });
+    try {
+      // Delete from Supabase first
+      const deleted = await deleteTransactionFromSupabase(user.id, date, description, amount);
+
+      if (deleted) {
+        // Reload the dataset from Supabase
+        const freshDataset = await loadUserDatasetFromSupabase(user.id);
+        if (freshDataset) {
+          setUserDataset(freshDataset);
+          setTransactionsUpdatedAt(Date.now());
+
+          // Sync arena spending
+          await syncAllArenaSpending(user.id, freshDataset.transactions);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to delete transaction:', err);
     }
   };
 
