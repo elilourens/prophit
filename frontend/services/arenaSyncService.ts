@@ -21,35 +21,35 @@ export interface ArenaPeriodSpending {
  */
 const VICE_CATEGORY_MAPPINGS: { [viceId: string]: { categories: string[]; keywords: string[] } } = {
   coffee: {
-    categories: ['Coffee', 'Cafes', 'Food & Drink'],
+    categories: ['Coffee'],
     keywords: ['starbucks', 'costa', 'coffee', 'cafe', 'latte', 'cappuccino', 'espresso', 'nero', 'pret'],
   },
   fast_food: {
-    categories: ['Fast Food', 'Restaurants', 'Food & Drink'],
-    keywords: ['mcdonald', 'burger king', 'kfc', 'subway', 'five guys', 'wendy', 'taco bell', 'chipotle'],
+    categories: ['Dining'],
+    keywords: ['mcdonald', 'burger king', 'kfc', 'subway', 'five guys', 'wendy', 'taco bell', 'chipotle', 'domino', 'pizza hut', 'papa john', 'nando'],
   },
   alcohol: {
-    categories: ['Bars & Pubs', 'Alcohol', 'Nightlife'],
-    keywords: ['pub', 'bar', 'beer', 'wine', 'spirits', 'off-licence', 'off license', 'liquor'],
+    categories: ['Dining', 'Entertainment'],
+    keywords: ['pub', 'bar', 'beer', 'wine', 'spirits', 'off-licence', 'off license', 'liquor', 'guinness'],
   },
   takeaway: {
-    categories: ['Takeaway', 'Food Delivery', 'Restaurants'],
+    categories: ['Dining'],
     keywords: ['deliveroo', 'just eat', 'uber eats', 'doordash', 'grubhub', 'takeaway'],
   },
   shopping: {
-    categories: ['Shopping', 'Retail', 'Online Shopping'],
-    keywords: ['amazon', 'asos', 'zara', 'h&m', 'primark', 'shop', 'store'],
+    categories: ['Shopping'],
+    keywords: ['amazon', 'asos', 'zara', 'h&m', 'primark', 'penneys', 'shop', 'store'],
   },
   subscriptions: {
-    categories: ['Subscriptions', 'Entertainment', 'Streaming'],
+    categories: ['Subscriptions', 'Entertainment'],
     keywords: ['netflix', 'spotify', 'disney', 'hulu', 'prime', 'apple music', 'youtube premium'],
   },
   gambling: {
-    categories: ['Gambling', 'Betting', 'Casino'],
+    categories: ['Entertainment', 'Other'],
     keywords: ['bet365', 'paddy power', 'william hill', 'betfair', 'casino', 'poker', 'lottery'],
   },
   smoking: {
-    categories: ['Tobacco', 'Vaping'],
+    categories: ['Other'],
     keywords: ['cigarette', 'tobacco', 'vape', 'juul', 'smoke shop'],
   },
 };

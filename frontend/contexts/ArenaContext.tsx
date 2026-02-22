@@ -491,14 +491,16 @@ export const ArenaProvider: React.FC<ArenaProviderProps> = ({ children }) => {
 
   /**
    * Sync current user's spending for a specific arena
+   * Note: Does not refetch arena to avoid triggering re-render loops
    */
   const syncMyArenaSpending = async (arenaId: string, transactions: Transaction[]) => {
     if (!user) return;
 
-    const arena = await fetchArenaById(arenaId);
+    // Use currentArena if available, otherwise fetch (but don't update state)
+    const arena = currentArena?.id === arenaId ? currentArena : await fetchArenaById(arenaId);
     if (!arena) return;
 
-    const result = await syncMemberSpending(
+    await syncMemberSpending(
       arenaId,
       user.id,
       transactions,
@@ -507,15 +509,7 @@ export const ArenaProvider: React.FC<ArenaProviderProps> = ({ children }) => {
       arena.mode,
       (arena as any).target_category || undefined
     );
-
-    if (result.success) {
-      // Refresh arena data to reflect new spending
-      const updated = await fetchArenaById(arenaId);
-      if (updated && currentArena?.id === arenaId) {
-        setCurrentArena(updated);
-      }
-      await fetchMyArenas();
-    }
+    // Don't refetch here - let the caller decide when to refresh
   };
 
   /**

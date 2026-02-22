@@ -491,15 +491,31 @@ function normalizeTransaction(t: any): Transaction {
  */
 export function categorizeTransaction(description: string): string {
   const desc = description.toLowerCase();
-  if (desc.includes('coffee') || desc.includes('starbucks') || desc.includes('costa')) return 'Coffee';
-  if (desc.includes('uber') || desc.includes('bolt') || desc.includes('taxi') || desc.includes('luas') || desc.includes('bus')) return 'Transport';
-  if (desc.includes('tesco') || desc.includes('lidl') || desc.includes('aldi') || desc.includes('dunnes') || desc.includes('supermarket') || desc.includes('grocery')) return 'Groceries';
-  if (desc.includes('netflix') || desc.includes('spotify') || desc.includes('disney') || desc.includes('subscription')) return 'Subscriptions';
-  if (desc.includes('restaurant') || desc.includes('dining') || desc.includes('food') || desc.includes('lunch') || desc.includes('dinner')) return 'Dining';
+  // Coffee & Cafes
+  if (desc.includes('coffee') || desc.includes('starbucks') || desc.includes('costa') || desc.includes('cafe') || desc.includes('nero') || desc.includes('pret')) return 'Coffee';
+  // Fast Food & Takeaway
+  if (desc.includes('mcdonald') || desc.includes('burger king') || desc.includes('kfc') || desc.includes('subway') || desc.includes('five guys') || desc.includes('wendy') || desc.includes('taco bell') || desc.includes('chipotle') || desc.includes('domino') || desc.includes('pizza hut') || desc.includes('papa john') || desc.includes('nando')) return 'Dining';
+  // Food Delivery
+  if (desc.includes('deliveroo') || desc.includes('just eat') || desc.includes('uber eats') || desc.includes('doordash')) return 'Dining';
+  // Transport
+  if (desc.includes('uber') || desc.includes('bolt') || desc.includes('taxi') || desc.includes('luas') || desc.includes('bus') || desc.includes('train') || desc.includes('dart')) return 'Transport';
+  // Groceries
+  if (desc.includes('tesco') || desc.includes('lidl') || desc.includes('aldi') || desc.includes('dunnes') || desc.includes('supermarket') || desc.includes('grocery') || desc.includes('supervalu')) return 'Groceries';
+  // Subscriptions
+  if (desc.includes('netflix') || desc.includes('spotify') || desc.includes('disney') || desc.includes('subscription') || desc.includes('apple music') || desc.includes('youtube premium')) return 'Subscriptions';
+  // Dining & Restaurants
+  if (desc.includes('restaurant') || desc.includes('dining') || desc.includes('food') || desc.includes('lunch') || desc.includes('dinner') || desc.includes('pub') || desc.includes('bar')) return 'Dining';
+  // Rent
   if (desc.includes('rent') || desc.includes('landlord')) return 'Rent';
+  // Utilities
   if (desc.includes('electric') || desc.includes('gas') || desc.includes('water') || desc.includes('utility')) return 'Utilities';
-  if (desc.includes('amazon') || desc.includes('shop') || desc.includes('store')) return 'Shopping';
+  // Shopping
+  if (desc.includes('amazon') || desc.includes('shop') || desc.includes('store') || desc.includes('penneys') || desc.includes('primark') || desc.includes('zara') || desc.includes('h&m')) return 'Shopping';
+  // Entertainment
+  if (desc.includes('cinema') || desc.includes('movie') || desc.includes('concert') || desc.includes('ticket') || desc.includes('game')) return 'Entertainment';
+  // Income
   if (desc.includes('salary') || desc.includes('payroll') || desc.includes('income') || desc.includes('deposit')) return 'Income';
+  // Transfer
   if (desc.includes('transfer') || desc.includes('revolut') || desc.includes('sent')) return 'Transfer';
   return 'Other';
 }
