@@ -10,8 +10,7 @@
 import { UserDataset, Transaction, TransactionSummary, FAKE_DATASETS, getDatasetById } from './fakeDatasets';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// TODO: Change back to 'https://backend.prophit.lissan.dev' for production
-const BASE_URL = 'http://172.20.10.11:8003';
+const BASE_URL = 'https://prophit-ashy.vercel.app';
 
 // Keys for persisting uploaded data
 const UPLOADED_DATA_KEY = '@prophit_uploaded_data';
