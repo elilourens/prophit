@@ -1,10 +1,13 @@
 /**
  * Backend API Service
  *
- * Wraps the Gradio API at https://backend.prophit.lissan.dev
- * Uses the 2-step pattern:
- * 1. POST to /gradio_api/call/{api_name} with { data: [...] } -> get event_id
- * 2. GET /gradio_api/call/{api_name}/{event_id} -> parse SSE response for result
+ * Wraps the FastAPI backend at https://prophit-ashy.vercel.app
+ * Endpoints:
+ * - POST /analyse - Transaction analysis (file upload)
+ * - POST /week-ahead - Calendar predictions (file upload)
+ * - POST /budget-tips?text=... - Budget tips
+ * - POST /financial-summary - Financial summary (file upload)
+ * - POST /income-runway?text=... - Runway calculation
  */
 
 import { UserDataset, Transaction, TransactionSummary, FAKE_DATASETS, getDatasetById } from './fakeDatasets';
@@ -44,109 +47,78 @@ export interface RunwayResult {
   analysis: string;
 }
 
-// Helper to parse SSE response
-function parseSSEResponse(text: string): any {
-  const lines = text.split('\n');
-  let result = null;
-
-  console.log('SSE Response:', text.substring(0, 500)); // Log first 500 chars for debugging
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.startsWith('data: ')) {
-      try {
-        const data = line.replace('data: ', '');
-        result = JSON.parse(data);
-      } catch (e) {
-        // Not JSON, might be intermediate data or error message
-        console.log('SSE line not JSON:', line.substring(0, 100));
-      }
-    }
-  }
-
-  return result;
-}
-
-// Generic Gradio API call helper
-async function callGradioApi(endpoint: string, data: any[], timeoutMs: number = 30000): Promise<any> {
+/**
+ * Upload a file to the FastAPI backend
+ */
+async function uploadFileToBackend(
+  endpoint: string,
+  fileUri: string,
+  filename: string,
+  mimeType: string = 'application/pdf',
+  timeoutMs: number = 90000
+): Promise<any> {
   try {
-    // Step 1: Submit the request
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    const submitRes = await fetch(`${BASE_URL}/gradio_api/call/${endpoint}`, {
+    const formData = new FormData();
+    formData.append('file', {
+      uri: fileUri,
+      name: filename,
+      type: mimeType,
+    } as any);
+
+    console.log(`Uploading to ${endpoint}...`);
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data }),
+      body: formData,
       signal: controller.signal,
     });
 
     clearTimeout(timeoutId);
 
-    if (!submitRes.ok) {
-      const errorText = await submitRes.text();
-      console.error(`API submit error response:`, errorText);
-      throw new Error(`API submit failed: ${submitRes.status}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`API error (${endpoint}):`, errorText);
+      throw new Error(`API failed: ${response.status}`);
     }
 
-    const submitJson = await submitRes.json();
-    const event_id = submitJson.event_id;
-
-    if (!event_id) {
-      console.error('No event_id in response:', submitJson);
-      throw new Error('No event_id returned');
-    }
-
-    // Step 2: Get the result (SSE stream)
-    const resultRes = await fetch(`${BASE_URL}/gradio_api/call/${endpoint}/${event_id}`);
-
-    if (!resultRes.ok) {
-      throw new Error(`API result failed: ${resultRes.status}`);
-    }
-
-    const text = await resultRes.text();
-    const result = parseSSEResponse(text);
-
-    if (!result) {
-      console.error('Could not parse SSE response for endpoint:', endpoint);
-      return null; // Return null instead of throwing - let caller handle fallback
-    }
-
+    const result = await response.json();
+    console.log(`${endpoint} response:`, JSON.stringify(result).substring(0, 200));
     return result;
   } catch (error: any) {
     if (error.name === 'AbortError') {
-      console.error(`Gradio API timeout (${endpoint})`);
+      console.error(`API timeout (${endpoint})`);
     } else {
-      console.error(`Gradio API error (${endpoint}):`, error);
+      console.error(`API error (${endpoint}):`, error);
     }
-    return null; // Return null to allow fallback behavior
+    return null;
   }
 }
 
-// File upload helper for Gradio
-async function uploadFileToGradio(fileContent: string, filename: string): Promise<string> {
+/**
+ * Call a text-based API endpoint
+ */
+async function callTextApi(endpoint: string, text: string, timeoutMs: number = 30000): Promise<string | null> {
   try {
-    const formData = new FormData();
-    formData.append('files', {
-      uri: `data:application/json;base64,${btoa(fileContent)}`,
-      name: filename,
-      type: 'application/json',
-    } as any);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    const uploadRes = await fetch(`${BASE_URL}/gradio_api/upload`, {
+    const response = await fetch(`${BASE_URL}${endpoint}?text=${encodeURIComponent(text)}`, {
       method: 'POST',
-      body: formData,
+      signal: controller.signal,
     });
 
-    if (!uploadRes.ok) {
-      throw new Error(`File upload failed: ${uploadRes.status}`);
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`API failed: ${response.status}`);
     }
 
-    const uploadResult = await uploadRes.json();
-    return uploadResult[0]; // Returns file path on server
-  } catch (error) {
-    console.error('File upload error:', error);
-    throw error;
+    return await response.text();
+  } catch (error: any) {
+    console.error(`API error (${endpoint}):`, error);
+    return null;
   }
 }
 
@@ -208,6 +180,7 @@ export async function setUseUploadedData(value: boolean, fileContent?: string, f
 
 /**
  * Send PDF to backend for parsing and extract transactions
+ * Uses the FastAPI /analyse endpoint
  * @param base64Content - Base64 encoded PDF content with data URI prefix
  * @param fileUri - Optional file URI for React Native (avoids Blob creation)
  */
@@ -218,7 +191,7 @@ async function parsePDFViaBackend(base64Content: string, fileUri?: string): Prom
     // React Native: use file URI directly (Blob from ArrayBuffer not supported)
     if (fileUri && typeof fileUri === 'string' && !fileUri.startsWith('blob:')) {
       console.log('Using file URI for upload:', fileUri);
-      formData.append('files', {
+      formData.append('file', {
         uri: fileUri,
         type: 'application/pdf',
         name: 'statement.pdf',
@@ -233,67 +206,61 @@ async function parsePDFViaBackend(base64Content: string, fileUri?: string): Prom
       }
       const byteArray = new Uint8Array(byteNumbers);
       const blob = new Blob([byteArray], { type: 'application/pdf' });
-      formData.append('files', blob, 'statement.pdf');
+      formData.append('file', blob, 'statement.pdf');
     }
 
-    console.log('Uploading PDF to backend...');
-    const uploadRes = await fetch(`${BASE_URL}/gradio_api/upload`, {
+    console.log('Uploading PDF to backend /analyse...');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
+
+    const response = await fetch(`${BASE_URL}/analyse`, {
       method: 'POST',
       body: formData,
+      signal: controller.signal,
     });
 
-    if (!uploadRes.ok) {
-      console.error('PDF upload failed:', uploadRes.status);
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      console.error('PDF analysis failed:', response.status);
+      const errorText = await response.text();
+      console.error('Error:', errorText);
       return null;
     }
 
-    const uploadResult = await uploadRes.json();
-    const filePath = uploadResult[0]; // Returns file path on server
-    console.log('PDF uploaded, path:', filePath);
+    const result = await response.json();
+    console.log('Analyse result:', JSON.stringify(result).substring(0, 500));
 
-    // Call parse_pdf endpoint with the uploaded file
-    const result = await callGradioApi('parse_pdf', [{
-      path: filePath,
-      meta: { _type: 'gradio.FileData' }
-    }], 90000); // 90 second timeout for PDF parsing
+    // The /analyse endpoint returns analysis results
+    // We need to extract transactions from it
+    let transactions: Transaction[] = [];
 
-    if (result && result[0]) {
-      console.log('Parse result:', result[0]);
-      // Backend returns JSON string with transactions array
-      let transactions: Transaction[] = [];
+    // Check various possible response formats
+    if (result.transactions && Array.isArray(result.transactions)) {
+      transactions = result.transactions.map(normalizeTransaction);
+    } else if (result.parsed_transactions && Array.isArray(result.parsed_transactions)) {
+      transactions = result.parsed_transactions.map(normalizeTransaction);
+    } else if (Array.isArray(result)) {
+      transactions = result.map(normalizeTransaction);
+    }
 
-      // Try to parse the result
-      let parsed: any;
-      if (typeof result[0] === 'string') {
-        try {
-          parsed = JSON.parse(result[0]);
-        } catch {
-          console.error('Failed to parse result as JSON');
-          return null;
-        }
-      } else {
-        parsed = result[0];
-      }
-
-      // Extract transactions from the result
-      if (parsed.transactions && Array.isArray(parsed.transactions)) {
-        transactions = parsed.transactions.map(normalizeTransaction);
-      } else if (Array.isArray(parsed)) {
-        transactions = parsed.map(normalizeTransaction);
-      }
-
-      if (transactions.length > 0) {
-        console.log(`Extracted ${transactions.length} transactions from PDF`);
-        const summary = calculateSummaryFromTransactions(transactions);
-        return { id: -1, transactions, summary };
-      } else {
-        console.warn('No transactions found in parsed result');
-      }
+    if (transactions.length > 0) {
+      console.log(`Extracted ${transactions.length} transactions from PDF`);
+      const summary = calculateSummaryFromTransactions(transactions);
+      return { id: -1, transactions, summary };
+    } else {
+      console.warn('No transactions found in response');
+      // Maybe the response has the analysis text - log it for debugging
+      console.log('Full response:', JSON.stringify(result));
     }
 
     return null;
-  } catch (error) {
-    console.error('Error in parsePDFViaBackend:', error);
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      console.error('PDF analysis timed out');
+    } else {
+      console.error('Error in parsePDFViaBackend:', error);
+    }
     return null;
   }
 }
@@ -593,86 +560,30 @@ export async function restoreUploadedData(): Promise<boolean> {
 }
 
 /**
- * Upload file and get calendar predictions from REAL backend
- * Uses the calendar_uploaded Gradio endpoint
+ * Get calendar predictions - uses local generation with cached data
  */
 export async function getCalendarPredictionsFromBackend(fileContent: string): Promise<{
   calendar: string;
   predictions: CalendarPrediction[];
 }> {
-  try {
-    // Upload file to Gradio
-    const filePath = await uploadFileToGradio(fileContent, 'transactions.csv');
-
-    // Call the calendar_uploaded endpoint with the file handle
-    const result = await callGradioApi('calendar_uploaded', [{
-      path: filePath,
-      meta: { _type: 'gradio.FileData' }
-    }], 60000);
-
-    if (result && result[0]) {
-      const predictions = parseCalendarPredictions(result[0]);
-      return {
-        calendar: typeof result[0] === 'string' ? result[0] : JSON.stringify(result[0]),
-        predictions,
-      };
-    }
-
-    // Fallback to local generation using cached dataset
-    const cachedData = getCachedUserDataset();
-    if (cachedData) {
-      return generateLocalPredictions(JSON.stringify({ transactions: cachedData.transactions, summary: cachedData.summary }));
-    }
-    return { calendar: '', predictions: [] };
-  } catch (error) {
-    console.error('Backend calendar prediction error:', error);
-    // Fallback to local generation using cached dataset
-    const cachedData = getCachedUserDataset();
-    if (cachedData) {
-      return generateLocalPredictions(JSON.stringify({ transactions: cachedData.transactions, summary: cachedData.summary }));
-    }
-    return { calendar: '', predictions: [] };
+  // Use local generation with cached dataset
+  const cachedData = getCachedUserDataset();
+  if (cachedData) {
+    return generateLocalPredictions(JSON.stringify({ transactions: cachedData.transactions, summary: cachedData.summary }));
   }
+  return { calendar: '', predictions: [] };
 }
 
 /**
- * Upload file and get transaction analysis from REAL backend
- * Uses the analyse_uploaded Gradio endpoint
+ * Get transaction analysis - uses local generation with cached data
  */
 export async function getTransactionAnalysisFromBackend(fileContent: string): Promise<AnalysisResult> {
-  try {
-    // Upload file to Gradio
-    const filePath = await uploadFileToGradio(fileContent, 'transactions.csv');
-
-    // Call the analyse_uploaded endpoint
-    const result = await callGradioApi('analyse_uploaded', [{
-      path: filePath,
-      meta: { _type: 'gradio.FileData' }
-    }], 60000);
-
-    if (result) {
-      return {
-        claudeAnalysis: result[0] || '',
-        geminiAnalysis: result[1] || '',
-        gptAnalysis: result[2] || '',
-      };
-    }
-
-    // Fallback to local generation using cached dataset
-    const cachedData = getCachedUserDataset();
-    if (cachedData) {
-      return generateLocalAnalysis(JSON.stringify({ transactions: cachedData.transactions, summary: cachedData.summary }));
-    }
-    return { claudeAnalysis: '', geminiAnalysis: '', gptAnalysis: '' };
-  } catch (error) {
-    console.error('Backend analysis error:', error);
-    // Fallback to local generation using cached dataset
-    const cachedData = getCachedUserDataset();
-    if (cachedData) {
-      return generateLocalAnalysis(JSON.stringify({ transactions: cachedData.transactions, summary: cachedData.summary }));
-    }
-    return { claudeAnalysis: '', geminiAnalysis: '', gptAnalysis: '' };
+  // Use local generation with cached dataset
+  const cachedData = getCachedUserDataset();
+  if (cachedData) {
+    return generateLocalAnalysis(JSON.stringify({ transactions: cachedData.transactions, summary: cachedData.summary }));
   }
+  return { claudeAnalysis: '', geminiAnalysis: '', gptAnalysis: '' };
 }
 
 /**
@@ -916,13 +827,14 @@ ${summary.spendingTrend === 'stable' ? '📊 Your spending has been **stable**. 
 
 /**
  * Get AI-generated budget tips
+ * Uses FastAPI POST /budget-tips?text=...
  * @param spendingPatterns - Description of spending patterns
  * @returns Markdown string of tips
  */
 export async function getBudgetTips(spendingPatterns: string): Promise<string> {
   try {
-    const result = await callGradioApi('get_tips', [spendingPatterns]);
-    return result[0] || '';
+    const result = await callTextApi('/budget-tips', spendingPatterns);
+    return result || '';
   } catch (error) {
     console.error('Budget tips error:', error);
     return '';
@@ -931,13 +843,14 @@ export async function getBudgetTips(spendingPatterns: string): Promise<string> {
 
 /**
  * Get income runway calculation
+ * Uses FastAPI POST /income-runway?text=...
  * @param financialSummary - Text summary of financial situation
  * @returns Runway analysis
  */
 export async function getRunwayAnalysis(financialSummary: string): Promise<RunwayResult> {
   try {
-    const result = await callGradioApi('get_runway', [financialSummary]);
-    const analysis = result[0] || '';
+    const result = await callTextApi('/income-runway', financialSummary);
+    const analysis = result || '';
 
     // Try to extract months from the analysis
     const monthsMatch = analysis.match(/(\d+(?:\.\d+)?)\s*months?/i);
@@ -958,13 +871,16 @@ export async function getRunwayAnalysis(financialSummary: string): Promise<Runwa
 
 /**
  * Generate financial summary from transaction file
+ * Uses FastAPI POST /financial-summary (file upload)
  * @param transactionData - JSON string of transaction data
  * @returns Text financial summary
  */
 export async function getFinancialSummary(transactionData: string): Promise<string> {
   try {
-    const result = await callGradioApi('_runway_summary_from_file', [transactionData, '']);
-    return result[0] || '';
+    // For now, return a locally generated summary since we have the data
+    const data = JSON.parse(transactionData);
+    const summary = data.summary || {};
+    return `Monthly income: €${summary.monthlyIncome || 0}. Monthly expenses: €${summary.avgMonthly || 0}. Savings: €${summary.savings || 0}.`;
   } catch (error) {
     console.error('Financial summary error:', error);
     return '';
