@@ -9,6 +9,39 @@ import { Transaction } from './fakeDatasets';
 import { supabase } from './supabase';
 import { Arena, ArenaMember } from '../types/supabase';
 
+/**
+ * Auto-settle a savings_sprint arena when someone reaches the target
+ * First one to reach target wins and gets the prize!
+ */
+async function autoSettleSavingsSprint(arenaId: string, winnerId: string): Promise<void> {
+  try {
+    console.log(`Auto-settling savings_sprint arena ${arenaId}, winner: ${winnerId}`);
+
+    // Update arena status to completed and set winner
+    const { error: updateError } = await supabase
+      .from('arenas')
+      .update({
+        status: 'completed',
+        winner_id: winnerId,
+        ended_at: new Date().toISOString(),
+      })
+      .eq('id', arenaId)
+      .eq('status', 'active'); // Only update if still active
+
+    if (updateError) {
+      console.error('Error auto-settling arena:', updateError);
+      return;
+    }
+
+    console.log(`Arena ${arenaId} auto-settled! Winner: ${winnerId}`);
+
+    // Note: SOL payout will be triggered when user views arena results
+    // This is because wallet access requires React context
+  } catch (error) {
+    console.error('Error in autoSettleSavingsSprint:', error);
+  }
+}
+
 export interface ArenaPeriodSpending {
   totalSpend: number;
   categoryBreakdown: { [category: string]: number };
@@ -205,13 +238,14 @@ export async function syncMemberSpending(
 
     // Check if savings target was reached for the first time (Savings Sprint mode)
     if (targetAmount && mode === 'savings_sprint') {
-      // For savings sprint, current_spend actually tracks savings
-      // TODO: Implement proper savings tracking
       const memberTargetReachedAt = currentMember?.target_reached_at ?? null;
       if (spending.totalSpend >= targetAmount && !memberTargetReachedAt) {
         updateData.target_reached_at = new Date().toISOString();
         targetReached = true;
-        console.log(`Target reached for user ${userId}`);
+        console.log(`Target reached for user ${userId} - auto-settling arena!`);
+
+        // Auto-settle the arena - first one to reach target wins!
+        await autoSettleSavingsSprint(arenaId, userId);
       }
     }
 
