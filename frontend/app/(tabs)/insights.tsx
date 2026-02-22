@@ -250,16 +250,16 @@ export default function InsightsScreen() {
     }
 
     // Calculate actual weekly spending from transactions
-    const now = new Date();
-    const oneWeekAgo = new Date(now);
+    const today = new Date();
+    const oneWeekAgo = new Date(today);
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    const twoWeeksAgo = new Date(now);
+    const twoWeeksAgo = new Date(today);
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
 
     // This week's transactions
     const thisWeekTxns = transactions.filter(t => {
       const d = new Date(t.date);
-      return t.amount < 0 && d >= oneWeekAgo && d <= now;
+      return t.amount < 0 && d >= oneWeekAgo && d <= today;
     });
     const thisWeekSpend = thisWeekTxns.reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
