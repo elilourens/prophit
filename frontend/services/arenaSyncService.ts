@@ -96,11 +96,17 @@ export function calculateArenaPeriodSpend(
 ): ArenaPeriodSpending {
   const endDate = arenaEndDate || new Date();
 
+  // Normalize arena start to beginning of day so same-day transactions are included
+  // Arena created_at is a full ISO timestamp (e.g. 2026-02-22T08:22:00Z)
+  // but transaction dates are YYYY-MM-DD strings (parsed as midnight)
+  const normalizedStart = new Date(arenaStartDate);
+  normalizedStart.setHours(0, 0, 0, 0);
+
   // Filter transactions within the arena period
   const periodTransactions = transactions.filter(t => {
     const txnDate = new Date(t.date);
     return (
-      txnDate >= arenaStartDate &&
+      txnDate >= normalizedStart &&
       txnDate <= endDate &&
       t.amount < 0 && // Only expenses
       t.category !== 'Transfer' && // Exclude transfers

@@ -331,11 +331,16 @@ export default function ArenaDetailScreen() {
   // Sync spending when arena loads or transactions change
   const lastSyncRef = useRef<number>(0);
   useEffect(() => {
-    if (currentArena && userDataset?.transactions && user && transactionsUpdatedAt !== lastSyncRef.current) {
-      console.log('Syncing arena spending...', currentArena.id);
-      syncMyArenaSpending(currentArena.id, userDataset.transactions);
-      lastSyncRef.current = transactionsUpdatedAt;
-    }
+    const syncAndReload = async () => {
+      if (currentArena && userDataset?.transactions && user && transactionsUpdatedAt !== lastSyncRef.current) {
+        console.log('Syncing arena spending...', currentArena.id);
+        await syncMyArenaSpending(currentArena.id, userDataset.transactions);
+        lastSyncRef.current = transactionsUpdatedAt;
+        // Reload arena from Supabase so leaderboard shows updated spend
+        await loadArena();
+      }
+    };
+    syncAndReload();
   }, [currentArena?.id, userDataset?.transactions?.length, transactionsUpdatedAt]);
 
   // Set up realtime subscription
