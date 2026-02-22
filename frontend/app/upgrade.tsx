@@ -124,6 +124,7 @@ const formatExpiry = (value: string) => {
 export default function UpgradeScreen() {
   const { isPro, upgradeToPro } = usePro();
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Card form state
@@ -146,7 +147,12 @@ export default function UpgradeScreen() {
 
   const handlePayment = async () => {
     if (!isCardValid()) {
-      Alert.alert('Incomplete', 'Please fill in all card details');
+      // Use platform-specific alert
+      if (Platform.OS === 'web') {
+        window.alert('Please fill in all card details');
+      } else {
+        Alert.alert('Incomplete', 'Please fill in all card details');
+      }
       return;
     }
 
@@ -163,17 +169,21 @@ export default function UpgradeScreen() {
       // Success!
       setShowPaymentModal(false);
       upgradeToPro();
-
-      Alert.alert(
-        'Welcome to Pro!',
-        'Payment successful! Your subscription is now active.',
-        [{ text: 'OK', onPress: handleClose }]
-      );
+      setShowSuccessModal(true);
     } catch (error) {
-      Alert.alert('Payment Failed', 'There was an issue processing your payment. Please try again.');
+      if (Platform.OS === 'web') {
+        window.alert('There was an issue processing your payment. Please try again.');
+      } else {
+        Alert.alert('Payment Failed', 'There was an issue processing your payment. Please try again.');
+      }
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleSuccessClose = () => {
+    setShowSuccessModal(false);
+    handleClose();
   };
 
   const freeFeatures = [
@@ -366,6 +376,32 @@ export default function UpgradeScreen() {
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Success Modal - works on both web and native */}
+      <Modal
+        visible={showSuccessModal}
+        animationType="fade"
+        transparent
+        onRequestClose={handleSuccessClose}
+      >
+        <View style={styles.successModalOverlay}>
+          <View style={styles.successModal}>
+            <View style={styles.successIconContainer}>
+              <Ionicons name="checkmark-circle" size={64} color={theme.colors.deepTeal} />
+            </View>
+            <Text style={styles.successTitle}>Welcome to Pro!</Text>
+            <Text style={styles.successMessage}>
+              Payment successful! Your subscription is now active.
+            </Text>
+            <TouchableOpacity
+              style={styles.successButton}
+              onPress={handleSuccessClose}
+            >
+              <Text style={styles.successButtonText}>Get Started</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -723,5 +759,50 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#635BFF',
     fontStyle: 'italic',
+  },
+  // Success Modal
+  successModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.lg,
+  },
+  successModal: {
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.xl,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 320,
+  },
+  successIconContainer: {
+    marginBottom: theme.spacing.md,
+  },
+  successTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: theme.colors.deepNavy,
+    marginBottom: theme.spacing.sm,
+  },
+  successMessage: {
+    fontSize: 16,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: theme.spacing.lg,
+    lineHeight: 22,
+  },
+  successButton: {
+    backgroundColor: theme.colors.hotCoral,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.xl,
+    borderRadius: theme.borderRadius.md,
+    width: '100%',
+    alignItems: 'center',
+  },
+  successButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.white,
   },
 });
