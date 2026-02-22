@@ -15,13 +15,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
 import { theme } from '../components/theme';
 import { useUserData } from '../contexts/UserDataContext';
 import { useArena } from '../contexts/ArenaContext';
 import { categorizeTransaction, parseFileToTransactions, parsePDFToTransactions } from '../services/backendApi';
 import { syncUploadedDataToSupabase } from '../services/transactionSyncService';
-import { showAlert } from '../utils/crossPlatform';
+import { showAlert, readFileAsString, readFileAsBase64 } from '../utils/crossPlatform';
 
 // Common merchants for autocomplete
 const COMMON_MERCHANTS = [
@@ -86,14 +85,12 @@ export default function AddTransactionScreen() {
 
       if (isPDF) {
         // Read PDF as base64 and parse via backend
-        const base64 = await FileSystem.readAsStringAsync(file.uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
+        const base64 = await readFileAsBase64(file.uri);
         const base64Content = `data:application/pdf;base64,${base64}`;
         transactions = await parsePDFToTransactions(base64Content, file.uri);
       } else {
         // Read text files and parse locally
-        const fileContent = await FileSystem.readAsStringAsync(file.uri);
+        const fileContent = await readFileAsString(file.uri);
         transactions = parseFileToTransactions(fileContent);
       }
 

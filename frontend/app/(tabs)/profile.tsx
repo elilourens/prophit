@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
 import { theme } from '../../components/theme';
 import { usePro } from '../../contexts/ProContext';
 import { useArena } from '../../contexts/ArenaContext';
@@ -12,7 +11,7 @@ import { useSolana } from '../../contexts/SolanaContext';
 import { useUserData } from '../../contexts/UserDataContext';
 import { parseFileToTransactions, parsePDFToTransactions, clearAllTransactionData } from '../../services/backendApi';
 import { clearAllTransactions, syncUploadedDataToSupabase } from '../../services/transactionSyncService';
-import { showAlert, copyToClipboard } from '../../utils/crossPlatform';
+import { showAlert, copyToClipboard, readFileAsString, readFileAsBase64 } from '../../utils/crossPlatform';
 
 /**
  * Account Screen (Profile Tab)
@@ -108,42 +107,15 @@ export default function ProfileScreen() {
       const isPDF = file.name?.toLowerCase().endsWith('.pdf');
       let transactions: { date: string; description: string; amount: number; category: string }[] = [];
 
-      if (Platform.OS === 'web') {
-        // On web, use FileReader API
-        const webFile = (file as any).file as File;
-
-        if (isPDF) {
-          // Read as base64 for PDFs and parse via backend
-          const base64Content = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = () => reject(new Error('Failed to read file'));
-            reader.readAsDataURL(webFile);
-          });
-          transactions = await parsePDFToTransactions(base64Content);
-        } else {
-          // Read as text for JSON/CSV and parse locally
-          const fileContent = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = () => reject(new Error('Failed to read file'));
-            reader.readAsText(webFile);
-          });
-          transactions = parseFileToTransactions(fileContent);
-        }
+      if (isPDF) {
+        // Read PDF as base64 and parse via backend
+        const base64 = await readFileAsBase64(file.uri);
+        const base64Content = `data:application/pdf;base64,${base64}`;
+        transactions = await parsePDFToTransactions(base64Content, file.uri);
       } else {
-        // On native, use expo-file-system
-        if (isPDF) {
-          const base64Content = await FileSystem.readAsStringAsync(file.uri, {
-            encoding: 'base64' as any,
-          });
-          transactions = await parsePDFToTransactions(`data:application/pdf;base64,${base64Content}`, file.uri);
-        } else {
-          const fileContent = await FileSystem.readAsStringAsync(file.uri, {
-            encoding: 'utf8' as any,
-          });
-          transactions = parseFileToTransactions(fileContent);
-        }
+        // Read text files and parse locally
+        const fileContent = await readFileAsString(file.uri);
+        transactions = parseFileToTransactions(fileContent);
       }
 
       if (transactions.length === 0) {

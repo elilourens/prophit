@@ -4,6 +4,7 @@
 
 import { Alert, Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import * as FileSystem from 'expo-file-system/legacy';
 
 /**
  * Show an alert that works on both web and native
@@ -107,5 +108,50 @@ export async function shareContent(message: string, title?: string): Promise<boo
       console.error('Share failed:', error);
       return false;
     }
+  }
+}
+
+/**
+ * Read a file as a string - works on both web and native
+ * @param uri File URI from DocumentPicker
+ * @returns File content as string
+ */
+export async function readFileAsString(uri: string): Promise<string> {
+  if (Platform.OS === 'web') {
+    // On web, fetch the blob URL and read as text
+    const response = await fetch(uri);
+    return await response.text();
+  } else {
+    // On native, use expo-file-system
+    return await FileSystem.readAsStringAsync(uri);
+  }
+}
+
+/**
+ * Read a file as base64 - works on both web and native
+ * @param uri File URI from DocumentPicker
+ * @returns File content as base64 string
+ */
+export async function readFileAsBase64(uri: string): Promise<string> {
+  if (Platform.OS === 'web') {
+    // On web, fetch the blob and convert to base64
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove the data URL prefix (e.g., "data:application/pdf;base64,")
+        const base64 = result.split(',')[1] || result;
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } else {
+    // On native, use expo-file-system
+    return await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
   }
 }
