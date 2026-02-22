@@ -27,6 +27,7 @@ import {
   deleteTransactionFromSupabase,
   syncUploadedDataToSupabase,
 } from '../services/transactionSyncService';
+import { syncAllArenaSpending } from '../services/arenaSyncService';
 
 const LOCAL_DATASET_KEY = '@prophit_user_dataset_id';
 
@@ -201,11 +202,21 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
       console.log('Transaction added, updated timestamp:', Date.now());
     }
 
-    // Sync to Supabase (async, don't block UI)
+    // Sync to Supabase and then sync arena spending
     if (user) {
-      saveTransactionToSupabase(user.id, transaction).catch(err => {
-        console.error('Failed to sync transaction to Supabase:', err);
-      });
+      try {
+        // Save to Supabase first
+        const saved = await saveTransactionToSupabase(user.id, transaction);
+        if (saved) {
+          console.log('Transaction saved to Supabase, syncing arena spending...');
+          // Now sync all arena spending with updated transactions
+          const allTransactions = updatedDataset?.transactions || [];
+          await syncAllArenaSpending(user.id, allTransactions);
+          console.log('Arena spending synced!');
+        }
+      } catch (err) {
+        console.error('Failed to sync transaction:', err);
+      }
     }
   };
 

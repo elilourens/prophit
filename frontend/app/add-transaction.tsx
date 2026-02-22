@@ -51,7 +51,9 @@ export default function AddTransactionScreen() {
   const { user } = useArena();
 
   // Form state - expenses only (for arena tracking)
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const now = new Date();
+  const [date, setDate] = useState(now.toISOString().split('T')[0]);
+  const [time, setTime] = useState(now.toTimeString().slice(0, 5)); // HH:MM format
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
@@ -149,9 +151,8 @@ export default function AddTransactionScreen() {
       // Use selected category or suggested category
       const finalCategory = category || suggestedCategory || 'Other';
 
-      // Create timestamp - use current time with the selected date
-      const now = new Date();
-      const timestamp = `${date}T${now.toISOString().split('T')[1]}`;
+      // Create timestamp from date and time inputs
+      const timestamp = `${date}T${time}:00.000Z`;
 
       await addTransaction({
         date,
@@ -254,18 +255,33 @@ export default function AddTransactionScreen() {
           </View>
           <Text style={styles.expenseHint}>All transactions are logged as expenses</Text>
 
-          {/* Date Input */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Date</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="calendar-outline" size={20} color={theme.colors.gray} />
-              <TextInput
-                style={styles.textInput}
-                value={date}
-                onChangeText={handleDateChange}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={theme.colors.gray}
-              />
+          {/* Date & Time Input */}
+          <View style={styles.dateTimeRow}>
+            <View style={[styles.inputGroup, { flex: 1 }]}>
+              <Text style={styles.inputLabel}>Date</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="calendar-outline" size={20} color={theme.colors.gray} />
+                <TextInput
+                  style={styles.textInput}
+                  value={date}
+                  onChangeText={handleDateChange}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={theme.colors.gray}
+                />
+              </View>
+            </View>
+            <View style={[styles.inputGroup, { flex: 0.6 }]}>
+              <Text style={styles.inputLabel}>Time</Text>
+              <View style={styles.inputWrapper}>
+                <Ionicons name="time-outline" size={20} color={theme.colors.gray} />
+                <TextInput
+                  style={styles.textInput}
+                  value={time}
+                  onChangeText={setTime}
+                  placeholder="HH:MM"
+                  placeholderTextColor={theme.colors.gray}
+                />
+              </View>
             </View>
           </View>
 
@@ -474,6 +490,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.colors.textSecondary,
     marginBottom: theme.spacing.lg,
+  },
+  dateTimeRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.md,
   },
   inputGroup: {
     marginBottom: theme.spacing.lg,
