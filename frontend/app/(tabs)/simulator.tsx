@@ -17,11 +17,8 @@ import { theme } from '../../components/theme';
 import { usePro } from '../../contexts/ProContext';
 import { useUserData } from '../../contexts/UserDataContext';
 import { LockedFeatureModal, ProBadge } from '../../components/LockedFeatureModal';
-import {
-  getBudgetTips,
-  getRunwayAnalysis,
-  getCachedUserDataset,
-} from '../../services/backendApi';
+import { getBudgetTips, getRunwayAnalysis } from '../../services/backendApi';
+import { UserDataset } from '../../services/fakeDatasets';
 
 /**
  * Scenario Simulator Screen - Dynamic What-If Questions
@@ -54,10 +51,9 @@ const SUGGESTED_QUESTIONS = [
 ];
 
 // Get AI-generated response from backend API
-const getAIResponse = async (question: string): Promise<string> => {
+const getAIResponse = async (question: string, dataset: UserDataset | null): Promise<string> => {
   try {
     const lowerQuestion = question.toLowerCase();
-    const dataset = getCachedUserDataset();
     const summary = dataset?.summary || { savings: 18500, avgDaily: 72, monthlyIncome: 3500, topCategories: ['Rent', 'Groceries', 'Dining'] };
 
     // Use runway analysis for job-quit questions
@@ -98,9 +94,8 @@ const parseAIInsights = (aiResponse: string, baseResponse: Omit<WhatIfResponse, 
 };
 
 // Local fallback response generator
-const generateMockResponse = (question: string): Omit<WhatIfResponse, 'id' | 'timestamp' | 'isExpanded'> => {
+const generateMockResponse = (question: string, dataset: UserDataset | null): Omit<WhatIfResponse, 'id' | 'timestamp' | 'isExpanded'> => {
   const lowerQuestion = question.toLowerCase();
-  const dataset = getCachedUserDataset();
   const summary = dataset?.summary || {
     savings: 18500,
     avgMonthly: 2100,
@@ -444,7 +439,7 @@ const ResponseCard: React.FC<{
 
 export default function SimulatorScreen() {
   const { isPro } = usePro();
-  const { isDataLoaded } = useUserData();
+  const { userDataset, isDataLoaded } = useUserData();
   const [showLockedModal, setShowLockedModal] = useState(false);
   const [question, setQuestion] = useState('');
   const [isThinking, setIsThinking] = useState(false);
@@ -465,11 +460,11 @@ export default function SimulatorScreen() {
     setIsThinking(true);
 
     try {
-      // Get base mock response for structure
-      const mockResponse = generateMockResponse(question);
+      // Get base mock response for structure (using context data)
+      const mockResponse = generateMockResponse(question, userDataset);
 
       // Try to enhance with AI response from backend
-      const aiResponse = await getAIResponse(question);
+      const aiResponse = await getAIResponse(question, userDataset);
       const enhancedResponse = parseAIInsights(aiResponse, mockResponse);
 
       const newResponse: WhatIfResponse = {
@@ -488,7 +483,7 @@ export default function SimulatorScreen() {
     } catch (error) {
       console.error('Error generating response:', error);
       // Fall back to pure mock response
-      const mockResponse = generateMockResponse(question);
+      const mockResponse = generateMockResponse(question, userDataset);
       const newResponse: WhatIfResponse = {
         ...mockResponse,
         id: Date.now().toString(),

@@ -19,7 +19,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { theme } from '../components/theme';
 import { useUserData } from '../contexts/UserDataContext';
 import { useArena } from '../contexts/ArenaContext';
-import { categorizeTransaction, setUseUploadedData, getCachedUserDataset } from '../services/backendApi';
+import { categorizeTransaction, parseFileToTransactions, parsePDFToTransactions } from '../services/backendApi';
 import { syncUploadedDataToSupabase } from '../services/transactionSyncService';
 import { showAlert } from '../utils/crossPlatform';
 
@@ -61,8 +61,13 @@ export default function AddTransactionScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Handle file upload
+  // Handle file upload - parses directly and syncs to Supabase (no local cache)
   const handleUploadFile = async () => {
+    if (!user) {
+      showAlert('Error', 'Please log in first');
+      return;
+    }
+
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'application/json', 'text/csv', 'text/plain'],
@@ -77,36 +82,37 @@ export default function AddTransactionScreen() {
       const file = result.assets[0];
       const isPDF = file.mimeType === 'application/pdf';
 
-      let fileContent: string;
+      let transactions: { date: string; description: string; amount: number; category: string }[] = [];
 
       if (isPDF) {
-        // Read PDF as base64
+        // Read PDF as base64 and parse via backend
         const base64 = await FileSystem.readAsStringAsync(file.uri, {
           encoding: FileSystem.EncodingType.Base64,
         });
-        fileContent = `data:application/pdf;base64,${base64}`;
+        const base64Content = `data:application/pdf;base64,${base64}`;
+        transactions = await parsePDFToTransactions(base64Content, file.uri);
       } else {
-        // Read text files directly
-        fileContent = await FileSystem.readAsStringAsync(file.uri);
+        // Read text files and parse locally
+        const fileContent = await FileSystem.readAsStringAsync(file.uri);
+        transactions = parseFileToTransactions(fileContent);
       }
 
-      // Parse and merge with existing data
-      const success = await setUseUploadedData(true, fileContent, isPDF ? file.uri : undefined);
-
-      if (success) {
-        // Sync to Supabase (will merge with existing)
-        const parsedDataset = getCachedUserDataset();
-        if (parsedDataset && parsedDataset.transactions.length > 0 && user) {
-          console.log('Syncing', parsedDataset.transactions.length, 'transactions to Supabase...');
-          const syncResult = await syncUploadedDataToSupabase(user.id, parsedDataset.transactions);
-          console.log(`Synced: ${syncResult.added} new, ${syncResult.skipped} duplicates`);
-        }
-        await reloadUserData();
-        showAlert('Success', `Transactions imported and merged with your existing data!`);
-        router.canGoBack() ? router.back() : router.replace('/(tabs)/history');
-      } else {
+      if (transactions.length === 0) {
         showAlert('Upload Failed', 'Could not extract transactions from your file.');
+        setIsUploading(false);
+        return;
       }
+
+      // Sync directly to Supabase (will deduplicate with existing)
+      console.log('Syncing', transactions.length, 'transactions to Supabase...');
+      const syncResult = await syncUploadedDataToSupabase(user.id, transactions);
+      console.log(`Synced: ${syncResult.added} new, ${syncResult.skipped} duplicates`);
+
+      // Reload user data from Supabase
+      await reloadUserData();
+
+      showAlert('Success', `${syncResult.added} new transactions imported!${syncResult.skipped > 0 ? ` (${syncResult.skipped} duplicates skipped)` : ''}`);
+      router.canGoBack() ? router.back() : router.replace('/(tabs)/history');
     } catch (error) {
       console.error('Upload error:', error);
       showAlert('Error', 'Failed to upload file. Please try again.');

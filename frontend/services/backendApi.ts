@@ -969,6 +969,138 @@ function parseCalendarPredictions(rawJson: string): CalendarPrediction[] {
   }
 }
 
+/**
+ * Parse file content (JSON, CSV, or text) into transactions array
+ * PURE function - no local storage or cache dependencies
+ * @returns Array of Transaction objects or empty array if parsing fails
+ */
+export function parseFileToTransactions(content: string): Transaction[] {
+  try {
+    let transactions: Transaction[] = [];
+
+    // Check if it's a PDF (base64 encoded) - can't parse locally
+    if (content.startsWith('data:application/pdf;base64,')) {
+      console.log('PDF detected - requires backend parsing');
+      return [];
+    }
+
+    // Try parsing as JSON first
+    if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
+      const jsonData = JSON.parse(content);
+      console.log('Parsed JSON structure:', Object.keys(jsonData));
+
+      if (Array.isArray(jsonData)) {
+        transactions = jsonData.map(normalizeTransaction);
+      } else if (jsonData.transactions && Array.isArray(jsonData.transactions)) {
+        transactions = jsonData.transactions.map(normalizeTransaction);
+      } else if (jsonData.statements && Array.isArray(jsonData.statements)) {
+        jsonData.statements.forEach((statement: any) => {
+          if (statement.transactions && Array.isArray(statement.transactions)) {
+            const statementTxns = statement.transactions.map(normalizeTransaction);
+            transactions.push(...statementTxns);
+          }
+        });
+      } else if (jsonData.data && Array.isArray(jsonData.data)) {
+        transactions = jsonData.data.map(normalizeTransaction);
+      } else if (jsonData.records && Array.isArray(jsonData.records)) {
+        transactions = jsonData.records.map(normalizeTransaction);
+      } else {
+        // Try to find any array property that looks like transactions
+        for (const key of Object.keys(jsonData)) {
+          if (Array.isArray(jsonData[key]) && jsonData[key].length > 0) {
+            const sample = jsonData[key][0];
+            if (sample && (sample.date || sample.Date || sample.timestamp || sample.amount || sample.Amount)) {
+              transactions = jsonData[key].map(normalizeTransaction);
+              break;
+            }
+          }
+        }
+      }
+    } else {
+      // Parse as CSV
+      transactions = parseCSV(content);
+    }
+
+    // Sort by date descending
+    transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    return transactions;
+  } catch (error) {
+    console.error('Error parsing file content:', error);
+    return [];
+  }
+}
+
+/**
+ * Parse PDF via backend API and return transactions array
+ * PURE function - no local storage or cache dependencies
+ * @returns Array of Transaction objects or empty array if parsing fails
+ */
+export async function parsePDFToTransactions(base64Content: string, fileUri?: string): Promise<Transaction[]> {
+  try {
+    const formData = new FormData();
+
+    // React Native: use file URI directly
+    if (fileUri && typeof fileUri === 'string' && !fileUri.startsWith('blob:')) {
+      console.log('Using file URI for upload:', fileUri);
+      formData.append('file', {
+        uri: fileUri,
+        type: 'application/pdf',
+        name: 'statement.pdf',
+      } as any);
+    } else {
+      // Web: convert base64 to Blob
+      const base64Data = base64Content.replace('data:application/pdf;base64,', '');
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      formData.append('file', blob, 'statement.pdf');
+    }
+
+    console.log('Uploading PDF to backend /parse-pdf...');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
+
+    const response = await fetch(`${BASE_URL}/parse-pdf`, {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      console.error('PDF parsing failed:', response.status);
+      return [];
+    }
+
+    const result = await response.json();
+    console.log('Parse-pdf result:', JSON.stringify(result).substring(0, 500));
+
+    let transactions: Transaction[] = [];
+    if (result.transactions && Array.isArray(result.transactions)) {
+      transactions = result.transactions.map(normalizeTransaction);
+    }
+
+    // Sort by date descending
+    transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    console.log(`Extracted ${transactions.length} transactions from PDF`);
+    return transactions;
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      console.error('PDF parsing timed out');
+    } else {
+      console.error('Error in parsePDFToTransactions:', error);
+    }
+    return [];
+  }
+}
+
 function generateLocalAnalysis(transactionData: string): AnalysisResult {
   try {
     const data = JSON.parse(transactionData);

@@ -1,36 +1,25 @@
 /**
  * User Data Context
  *
- * Watches for auth changes and manages user's fake dataset assignment.
- * Works alongside ArenaContext without modifying it.
- * Also handles manual transaction entry and deletion.
+ * Manages user transaction data with Supabase as the single source of truth.
+ * Handles manual transaction entry, deletion, and arena spending sync.
  */
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { useArena } from './ArenaContext';
-import { supabase } from '../services/supabase';
-import {
-  initUserData,
-  clearUserData,
-  getCachedUserDataset,
-  categorizeTransaction,
-} from '../services/backendApi';
-import { UserDataset, Transaction, getRandomAvailableDatasetId, getDatasetById } from '../services/fakeDatasets';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { UserDataset, Transaction } from '../services/fakeDatasets';
+import { categorizeTransaction } from '../services/backendApi';
 import {
   loadUserDatasetFromSupabase,
   saveTransactionToSupabase,
   deleteTransactionFromSupabase,
-  syncUploadedDataToSupabase,
 } from '../services/transactionSyncService';
 import { syncAllArenaSpending } from '../services/arenaSyncService';
-
-const LOCAL_DATASET_KEY = '@prophit_user_dataset_id';
 
 interface UserDataContextType {
   userDataset: UserDataset | null;
   isDataLoaded: boolean;
-  transactionsUpdatedAt: number; // Timestamp to trigger re-renders
+  transactionsUpdatedAt: number;
   reloadUserData: () => Promise<void>;
   addTransaction: (transaction: {
     date: string;
@@ -62,118 +51,52 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [transactionsUpdatedAt, setTransactionsUpdatedAt] = useState<number>(Date.now());
 
-  // Watch for user changes
+  // Load data when user changes
   useEffect(() => {
     if (isAuthenticated && user) {
-      loadOrAssignDataset(user.id);
+      loadUserData(user.id);
     } else {
-      // User logged out
-      clearUserData();
       setUserDataset(null);
       setIsDataLoaded(false);
-      AsyncStorage.removeItem(LOCAL_DATASET_KEY);
     }
   }, [isAuthenticated, user?.id]);
 
-  const loadOrAssignDataset = async (userId: string) => {
+  /**
+   * Load user's transaction data from Supabase
+   */
+  const loadUserData = async (userId: string) => {
     try {
       setIsDataLoaded(false);
+      console.log('Loading transactions from Supabase...');
 
-      // Only check Supabase for transactions - that's the single source of truth
-      console.log('Checking Supabase for transactions...');
-      const supabaseDataset = await loadUserDatasetFromSupabase(userId);
-      if (supabaseDataset && supabaseDataset.transactions.length > 0) {
-        console.log('Loaded', supabaseDataset.transactions.length, 'transactions from Supabase');
-        setUserDataset(supabaseDataset);
-        setIsDataLoaded(true);
-        return;
-      }
-
-      // No data found - user needs to upload data
-      console.log('No transaction data found - user needs to upload data');
-      setUserDataset(null);
-      setIsDataLoaded(true);
-    } catch (error) {
-      console.error('Error loading user dataset:', error);
-      setUserDataset(null);
-      setIsDataLoaded(true);
-    }
-  };
-
-  const assignDatasetToUser = async (userId: string, datasetId: number) => {
-    try {
-      // Update Supabase
-      const { error } = await supabase
-        .from('users')
-        .update({ dataset_id: datasetId })
-        .eq('id', userId);
-
-      if (error) {
-        console.error('Error assigning dataset:', error);
-        // Column might not exist yet, continue anyway
-      }
-
-      // Store locally
-      await AsyncStorage.setItem(LOCAL_DATASET_KEY, String(datasetId));
-
-      // Load the dataset
-      initUserData(datasetId);
-      const dataset = getCachedUserDataset();
-      setUserDataset(dataset);
-      setIsDataLoaded(true);
-
-      // Sync mock dataset transactions to Supabase so arenas work
+      const dataset = await loadUserDatasetFromSupabase(userId);
       if (dataset && dataset.transactions.length > 0) {
-        console.log(`Syncing mock dataset ${datasetId} (${dataset.transactions.length} txns) to Supabase...`);
-        syncUploadedDataToSupabase(userId, dataset.transactions).then(result => {
-          console.log(`Mock data synced: ${result.added} new, ${result.skipped} skipped`);
-        }).catch(err => {
-          console.error('Failed to sync mock data:', err);
-        });
+        console.log('Loaded', dataset.transactions.length, 'transactions');
+        setUserDataset(dataset);
+      } else {
+        console.log('No transactions found - user needs to add data');
+        setUserDataset(null);
       }
-
-      console.log(`Assigned dataset ${datasetId} to user ${userId}`);
     } catch (error) {
-      console.error('Error in assignDatasetToUser:', error);
-      // Still load the dataset locally
-      initUserData(datasetId);
-      setUserDataset(getCachedUserDataset());
-      setIsDataLoaded(true);
-    }
-  };
-
-  const getUsedDatasetIds = async (): Promise<number[]> => {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('dataset_id')
-        .not('dataset_id', 'is', null);
-
-      if (error) {
-        console.error('Error fetching used datasets:', error);
-        return [];
-      }
-
-      return data?.map(row => row.dataset_id).filter(Boolean) || [];
-    } catch (error) {
-      console.error('Error in getUsedDatasetIds:', error);
-      return [];
-    }
-  };
-
-  const reloadUserData = async () => {
-    // Just reload from the main loader which checks Supabase first
-    if (user) {
-      await loadOrAssignDataset(user.id);
-      setTransactionsUpdatedAt(Date.now());
-    } else {
+      console.error('Error loading user data:', error);
       setUserDataset(null);
+    } finally {
       setIsDataLoaded(true);
     }
   };
 
   /**
-   * Add a new transaction to the dataset
+   * Reload user data from Supabase
+   */
+  const reloadUserData = async () => {
+    if (user) {
+      await loadUserData(user.id);
+      setTransactionsUpdatedAt(Date.now());
+    }
+  };
+
+  /**
+   * Add a new transaction
    */
   const addTransaction = async (transactionData: {
     date: string;
@@ -196,26 +119,25 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
     };
 
     try {
-      // Save directly to Supabase - this is the source of truth
-      console.log('Saving transaction to Supabase...', transaction);
+      console.log('Saving transaction to Supabase...', transaction.description, transaction.amount);
       const saved = await saveTransactionToSupabase(user.id, transaction);
 
       if (saved) {
-        console.log('Transaction saved! Reloading data...');
+        console.log('Transaction saved! Reloading...');
 
-        // Reload the dataset from Supabase to get fresh data
+        // Reload from Supabase
         const freshDataset = await loadUserDatasetFromSupabase(user.id);
         if (freshDataset) {
           setUserDataset(freshDataset);
           setTransactionsUpdatedAt(Date.now());
 
-          // Sync all arena spending with the fresh transactions
+          // Sync arena spending
           console.log('Syncing arena spending...');
           await syncAllArenaSpending(user.id, freshDataset.transactions);
-          console.log('Arena spending synced!');
+          console.log('Done!');
         }
       } else {
-        console.error('Failed to save transaction to Supabase');
+        console.error('Failed to save transaction');
       }
     } catch (err) {
       console.error('Failed to add transaction:', err);
@@ -223,7 +145,7 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
   };
 
   /**
-   * Delete a transaction from the dataset
+   * Delete a transaction
    */
   const deleteTransaction = async (date: string, description: string, amount: number) => {
     if (!user) {
@@ -232,18 +154,17 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
     }
 
     try {
-      // Delete from Supabase first
       const deleted = await deleteTransactionFromSupabase(user.id, date, description, amount);
 
       if (deleted) {
-        // Reload the dataset from Supabase
+        // Reload from Supabase
         const freshDataset = await loadUserDatasetFromSupabase(user.id);
         if (freshDataset) {
           setUserDataset(freshDataset);
           setTransactionsUpdatedAt(Date.now());
-
-          // Sync arena spending
           await syncAllArenaSpending(user.id, freshDataset.transactions);
+        } else {
+          setUserDataset(null);
         }
       }
     } catch (err) {

@@ -267,6 +267,7 @@ export default function ArenaDetailScreen() {
     unsubscribeFromArena,
     syncMyArenaSpending,
     endArena,
+    cancelArena,
     getArenaWinner,
   } = useArena();
   const { userDataset, transactionsUpdatedAt } = useUserData();
@@ -276,6 +277,8 @@ export default function ArenaDetailScreen() {
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);
   const [escrowInfo, setEscrowInfo] = useState<EscrowInfo | null>(null);
   const [showSettlementModal, setShowSettlementModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [isCanceling, setIsCanceling] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
   const [settlementResult, setSettlementResult] = useState<{
     success: boolean;
@@ -436,6 +439,34 @@ export default function ArenaDetailScreen() {
     router.push('/add-transaction');
   };
 
+  const handleCancelArena = () => {
+    if (!currentArena) return;
+    setShowCancelModal(true);
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!currentArena) return;
+
+    setIsCanceling(true);
+    try {
+      const result = await cancelArena(currentArena.id);
+      if (result.success) {
+        const message = result.refunded
+          ? 'Arena canceled and your stake has been refunded!'
+          : 'Arena canceled successfully!';
+        showAlert('Arena Canceled', message);
+        router.replace('/(tabs)/arena');
+      } else {
+        showAlert('Error', result.error || 'Failed to cancel arena');
+      }
+    } catch (error) {
+      showAlert('Error', 'Failed to cancel arena');
+    } finally {
+      setIsCanceling(false);
+      setShowCancelModal(false);
+    }
+  };
+
   if (!currentArena) {
     return (
       <SafeAreaView style={styles.container}>
@@ -499,6 +530,15 @@ export default function ArenaDetailScreen() {
               {currentArena.mode === 'savings_sprint' ? 'Savings Target' : 'Spending Limit'}
             </Text>
             <Text style={styles.targetAmount}>€{currentArena.target_amount}</Text>
+            {/* Vice Category Badge for Vice Streak */}
+            {currentArena.mode === 'vice_streak' && (currentArena as any).target_category && (
+              <View style={styles.viceBadge}>
+                <Text style={styles.viceIcon}>🔥</Text>
+                <Text style={styles.viceText}>
+                  Avoiding: {(currentArena as any).target_category.replace('_', ' ')}
+                </Text>
+              </View>
+            )}
             {currentArena.stake_amount && (
               <View style={styles.stakeBadge}>
                 <Text style={styles.stakeIcon}>◈</Text>
@@ -587,7 +627,7 @@ export default function ArenaDetailScreen() {
           )}
 
           {/* End Arena Button (Creator Only) */}
-          {currentArena.status === 'active' && currentArena.created_by === user?.id && (
+          {currentArena.status === 'active' && currentArena.created_by === user?.id && members.length >= 2 && (
             <TouchableOpacity
               style={[
                 styles.endArenaButton,
@@ -599,6 +639,19 @@ export default function ArenaDetailScreen() {
               <Ionicons name="flag" size={20} color={theme.colors.white} />
               <Text style={styles.endArenaButtonText}>
                 {canSettleArena(currentArena) ? 'End Arena & Settle' : 'Waiting for Sync...'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Cancel/Leave Arena Button (Solo arenas only) */}
+          {currentArena.status === 'active' && members.length === 1 && (
+            <TouchableOpacity
+              style={styles.cancelArenaButton}
+              onPress={handleCancelArena}
+            >
+              <Ionicons name="exit-outline" size={20} color={theme.colors.hotCoral} />
+              <Text style={styles.cancelArenaButtonText}>
+                {currentArena.stake_amount ? 'Cancel Arena & Get Refund' : 'Cancel Arena'}
               </Text>
             </TouchableOpacity>
           )}
@@ -791,6 +844,54 @@ export default function ArenaDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Cancel Arena Modal */}
+      <Modal
+        visible={showCancelModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !isCanceling && setShowCancelModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalEmoji}>🚪</Text>
+            <Text style={styles.modalTitle}>Cancel Arena?</Text>
+            <Text style={styles.modalSubtitle}>
+              {currentArena?.stake_amount
+                ? `Your ${currentArena.stake_amount} SOL stake will be refunded.`
+                : 'This arena will be permanently deleted.'}
+            </Text>
+
+            <View style={styles.cancelWarningCard}>
+              <Ionicons name="information-circle-outline" size={20} color={theme.colors.midOrange} />
+              <Text style={styles.cancelWarningText}>
+                You can only cancel when you're the only member
+              </Text>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => setShowCancelModal(false)}
+                disabled={isCanceling}
+              >
+                <Text style={styles.modalCancelText}>Keep Arena</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.cancelConfirmButton, isCanceling && styles.modalButtonDisabled]}
+                onPress={handleConfirmCancel}
+                disabled={isCanceling}
+              >
+                {isCanceling ? (
+                  <ActivityIndicator color={theme.colors.white} size="small" />
+                ) : (
+                  <Text style={styles.modalConfirmText}>Cancel Arena</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -930,6 +1031,25 @@ const styles = StyleSheet.create({
     fontSize: 56,
     fontWeight: '800',
     color: theme.colors.deepNavy,
+  },
+  viceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.hotCoral + '20',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.full,
+    marginTop: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  viceIcon: {
+    fontSize: 16,
+  },
+  viceText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.hotCoral,
+    textTransform: 'capitalize',
   },
   stakeBadge: {
     flexDirection: 'row',
@@ -1370,6 +1490,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: theme.colors.white,
   },
+  // Cancel Arena Button
+  cancelArenaButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+    backgroundColor: theme.colors.hotCoral + '15',
+    borderWidth: 2,
+    borderColor: theme.colors.hotCoral,
+    borderRadius: theme.borderRadius.md,
+    paddingVertical: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
+  },
+  cancelArenaButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: theme.colors.hotCoral,
+  },
   // Modal Styles
   modalOverlay: {
     flex: 1,
@@ -1510,5 +1648,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#9945FF',
+  },
+  // Cancel Modal Styles
+  cancelWarningCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    backgroundColor: theme.colors.midOrange + '15',
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
+    width: '100%',
+  },
+  cancelWarningText: {
+    flex: 1,
+    fontSize: 13,
+    color: theme.colors.midOrange,
+    fontWeight: '500',
+  },
+  cancelConfirmButton: {
+    flex: 1,
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    backgroundColor: theme.colors.hotCoral,
   },
 });

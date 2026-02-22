@@ -32,6 +32,7 @@ export interface Database {
           join_code: string;
           mode: ArenaMode;
           target_amount: number;
+          target_category: string | null;
           created_by: string;
           status: ArenaStatus;
           stake_amount: number | null;
@@ -46,6 +47,7 @@ export interface Database {
           join_code: string;
           mode: ArenaMode;
           target_amount: number;
+          target_category?: string | null;
           created_by: string;
           status?: ArenaStatus;
           stake_amount?: number | null;
@@ -60,6 +62,7 @@ export interface Database {
           join_code?: string;
           mode?: ArenaMode;
           target_amount?: number;
+          target_category?: string | null;
           created_by?: string;
           status?: ArenaStatus;
           stake_amount?: number | null;

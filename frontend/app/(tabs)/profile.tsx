@@ -10,7 +10,7 @@ import { usePro } from '../../contexts/ProContext';
 import { useArena } from '../../contexts/ArenaContext';
 import { useSolana } from '../../contexts/SolanaContext';
 import { useUserData } from '../../contexts/UserDataContext';
-import { DEMO_TRANSACTIONS, setUseUploadedData, isUsingUploadedData, clearAllTransactionData, getCachedUserDataset } from '../../services/backendApi';
+import { parseFileToTransactions, parsePDFToTransactions, clearAllTransactionData } from '../../services/backendApi';
 import { clearAllTransactions, syncUploadedDataToSupabase } from '../../services/transactionSyncService';
 import { showAlert, copyToClipboard } from '../../utils/crossPlatform';
 
@@ -80,6 +80,11 @@ export default function ProfileScreen() {
   };
 
   const handleUploadStatement = async () => {
+    if (!user) {
+      showAlert('Error', 'Please log in first');
+      return;
+    }
+
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'application/json', 'text/csv', 'text/plain'],
@@ -93,34 +98,31 @@ export default function ProfileScreen() {
       const file = result.assets[0];
       setIsUploading(true);
 
-      // Read file content
-      let fileContent: string;
       const isPDF = file.name?.toLowerCase().endsWith('.pdf');
+      let transactions: { date: string; description: string; amount: number; category: string }[] = [];
 
       if (Platform.OS === 'web') {
         // On web, use FileReader API
-        // The file object on web has a 'file' property with the actual File/Blob
         const webFile = (file as any).file as File;
 
         if (isPDF) {
-          // Read as base64 for PDFs
-          fileContent = await new Promise<string>((resolve, reject) => {
+          // Read as base64 for PDFs and parse via backend
+          const base64Content = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload = () => {
-              const result = reader.result as string;
-              resolve(result); // Already includes data:application/pdf;base64, prefix
-            };
+            reader.onload = () => resolve(reader.result as string);
             reader.onerror = () => reject(new Error('Failed to read file'));
             reader.readAsDataURL(webFile);
           });
+          transactions = await parsePDFToTransactions(base64Content);
         } else {
-          // Read as text for JSON/CSV
-          fileContent = await new Promise<string>((resolve, reject) => {
+          // Read as text for JSON/CSV and parse locally
+          const fileContent = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result as string);
             reader.onerror = () => reject(new Error('Failed to read file'));
             reader.readAsText(webFile);
           });
+          transactions = parseFileToTransactions(fileContent);
         }
       } else {
         // On native, use expo-file-system
@@ -128,29 +130,28 @@ export default function ProfileScreen() {
           const base64Content = await FileSystem.readAsStringAsync(file.uri, {
             encoding: 'base64' as any,
           });
-          fileContent = `data:application/pdf;base64,${base64Content}`;
+          transactions = await parsePDFToTransactions(`data:application/pdf;base64,${base64Content}`, file.uri);
         } else {
-          fileContent = await FileSystem.readAsStringAsync(file.uri, {
+          const fileContent = await FileSystem.readAsStringAsync(file.uri, {
             encoding: 'utf8' as any,
           });
+          transactions = parseFileToTransactions(fileContent);
         }
       }
 
-      // Process the upload
-      const success = await setUseUploadedData(true, fileContent, isPDF ? file.uri : undefined);
-
-      if (success) {
-        // Sync to Supabase so it persists
-        const parsedDataset = getCachedUserDataset();
-        if (parsedDataset && parsedDataset.transactions.length > 0 && user) {
-          console.log('Syncing', parsedDataset.transactions.length, 'transactions to Supabase...');
-          await syncUploadedDataToSupabase(user.id, parsedDataset.transactions);
-        }
-        await reloadUserData();
-        showAlert('Success', 'Your bank statement has been uploaded and processed!');
-      } else {
+      if (transactions.length === 0) {
         showAlert('Upload Failed', 'Could not extract transactions from your file. Please try a different format.');
+        setIsUploading(false);
+        return;
       }
+
+      // Sync directly to Supabase (will deduplicate with existing)
+      console.log('Syncing', transactions.length, 'transactions to Supabase...');
+      const syncResult = await syncUploadedDataToSupabase(user.id, transactions);
+      console.log(`Synced: ${syncResult.added} new, ${syncResult.skipped} duplicates`);
+
+      await reloadUserData();
+      showAlert('Success', `${syncResult.added} new transactions imported!${syncResult.skipped > 0 ? ` (${syncResult.skipped} duplicates skipped)` : ''}`);
     } catch (error) {
       console.error('Upload error:', error);
       showAlert('Error', 'Failed to upload file. Please try again.');
@@ -385,7 +386,7 @@ export default function ProfileScreen() {
               <>
                 <Ionicons name="cloud-upload-outline" size={20} color={theme.colors.white} />
                 <Text style={styles.uploadButtonText}>
-                  {isUsingUploadedData() ? 'Upload New Statement' : 'Upload Bank Statement'}
+                  {userDataset && userDataset.transactions.length > 0 ? 'Upload More Data' : 'Upload Bank Statement'}
                 </Text>
               </>
             )}

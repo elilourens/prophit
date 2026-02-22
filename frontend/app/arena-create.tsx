@@ -64,6 +64,25 @@ const DURATION_OPTIONS: { id: DurationOption; label: string; days: number }[] = 
   { id: '1_month', label: '1 Month', days: 30 },
 ];
 
+// Vice categories for Vice Streak mode
+interface ViceCategory {
+  id: string;
+  label: string;
+  icon: string;
+  examples: string;
+}
+
+const VICE_CATEGORIES: ViceCategory[] = [
+  { id: 'coffee', label: 'Coffee', icon: '☕', examples: 'Starbucks, Costa, etc.' },
+  { id: 'fast_food', label: 'Fast Food', icon: '🍔', examples: 'McDonald\'s, Burger King, etc.' },
+  { id: 'alcohol', label: 'Alcohol', icon: '🍺', examples: 'Pubs, bars, off-licenses' },
+  { id: 'takeaway', label: 'Takeaway', icon: '🥡', examples: 'Deliveroo, Just Eat, etc.' },
+  { id: 'shopping', label: 'Shopping', icon: '🛍️', examples: 'Amazon, clothes, gadgets' },
+  { id: 'subscriptions', label: 'Subscriptions', icon: '📺', examples: 'Netflix, Spotify, etc.' },
+  { id: 'gambling', label: 'Gambling', icon: '🎰', examples: 'Betting apps, casinos' },
+  { id: 'smoking', label: 'Smoking', icon: '🚬', examples: 'Cigarettes, vapes' },
+];
+
 export default function CreateArenaScreen() {
   const { createArena } = useArena();
   const { wallet, isInitialized, createArenaEscrow, requestAirdrop, getExplorerUrl } = useSolana();
@@ -72,6 +91,7 @@ export default function CreateArenaScreen() {
   const [arenaName, setArenaName] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
   const [selectedDuration, setSelectedDuration] = useState<DurationOption>('1_week');
+  const [selectedViceCategory, setSelectedViceCategory] = useState<string | null>(null);
   const [stakeEnabled, setStakeEnabled] = useState(false);
   const [stakeAmount, setStakeAmount] = useState('');
   const [showWalletModal, setShowWalletModal] = useState(false);
@@ -83,11 +103,14 @@ export default function CreateArenaScreen() {
 
   const handleModeSelect = (mode: ArenaMode) => {
     setSelectedMode(mode);
+    setSelectedViceCategory(null); // Reset vice category when switching modes
     setStep('details');
   };
 
   const handleDetailsNext = () => {
     if (!arenaName.trim() || !targetAmount) return;
+    // For vice_streak mode, require a vice category
+    if (selectedMode === 'vice_streak' && !selectedViceCategory) return;
     setStep('stake');
   };
 
@@ -112,7 +135,8 @@ export default function CreateArenaScreen() {
         selectedMode,
         parseFloat(targetAmount),
         stakeEnabled ? parseFloat(stakeAmount) : undefined,
-        endDate.toISOString()
+        endDate.toISOString(),
+        selectedMode === 'vice_streak' ? selectedViceCategory || undefined : undefined
       );
 
       // If stakes are enabled, create the escrow on Solana
@@ -267,6 +291,43 @@ export default function CreateArenaScreen() {
           </Text>
         </View>
 
+        {/* Vice Category Selection (Vice Streak only) */}
+        {selectedMode === 'vice_streak' && (
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>What's Your Vice?</Text>
+            <Text style={styles.inputHint}>Select the category you want to avoid</Text>
+            <View style={styles.viceCategoryContainer}>
+              {VICE_CATEGORIES.map((category) => (
+                <TouchableOpacity
+                  key={category.id}
+                  style={[
+                    styles.viceCategoryOption,
+                    selectedViceCategory === category.id && styles.viceCategoryOptionSelected,
+                  ]}
+                  onPress={() => setSelectedViceCategory(category.id)}
+                >
+                  <Text style={styles.viceCategoryIcon}>{category.icon}</Text>
+                  <Text
+                    style={[
+                      styles.viceCategoryLabel,
+                      selectedViceCategory === category.id && styles.viceCategoryLabelSelected,
+                    ]}
+                  >
+                    {category.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {selectedViceCategory && (
+              <View style={styles.viceCategoryInfo}>
+                <Text style={styles.viceCategoryInfoText}>
+                  {VICE_CATEGORIES.find(c => c.id === selectedViceCategory)?.examples}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Duration */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Arena Duration</Text>
@@ -299,10 +360,10 @@ export default function CreateArenaScreen() {
         <TouchableOpacity
           style={[
             styles.nextButton,
-            (!arenaName.trim() || !targetAmount) && styles.nextButtonDisabled,
+            (!arenaName.trim() || !targetAmount || (selectedMode === 'vice_streak' && !selectedViceCategory)) && styles.nextButtonDisabled,
           ]}
           onPress={handleDetailsNext}
-          disabled={!arenaName.trim() || !targetAmount}
+          disabled={!arenaName.trim() || !targetAmount || (selectedMode === 'vice_streak' && !selectedViceCategory)}
         >
           <Text style={styles.nextButtonText}>Continue</Text>
         </TouchableOpacity>
@@ -645,6 +706,52 @@ const styles = StyleSheet.create({
   },
   durationOptionTextSelected: {
     color: theme.colors.hotCoral,
+  },
+  // Vice Category Picker
+  viceCategoryContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.md,
+  },
+  viceCategoryOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    gap: theme.spacing.xs,
+    ...theme.cardShadow,
+  },
+  viceCategoryOptionSelected: {
+    borderColor: theme.colors.hotCoral,
+    backgroundColor: theme.colors.hotCoral + '10',
+  },
+  viceCategoryIcon: {
+    fontSize: 18,
+  },
+  viceCategoryLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.textSecondary,
+  },
+  viceCategoryLabelSelected: {
+    color: theme.colors.hotCoral,
+  },
+  viceCategoryInfo: {
+    backgroundColor: theme.colors.hotCoral + '10',
+    borderRadius: theme.borderRadius.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    marginTop: theme.spacing.md,
+  },
+  viceCategoryInfoText: {
+    fontSize: 13,
+    color: theme.colors.hotCoral,
+    fontStyle: 'italic',
   },
   nextButton: {
     backgroundColor: theme.colors.hotCoral,

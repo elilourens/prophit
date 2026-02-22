@@ -22,8 +22,9 @@ interface ArenaContextType {
   currentArena: ArenaWithMembers | null;
 
   // Arena methods
-  createArena: (name: string, mode: string, targetAmount: number, stakeAmount?: number, endsAt?: string) => Promise<Arena>;
+  createArena: (name: string, mode: string, targetAmount: number, stakeAmount?: number, endsAt?: string, targetCategory?: string) => Promise<Arena>;
   joinArena: (joinCode: string) => Promise<Arena>;
+  cancelArena: (arenaId: string) => Promise<{ success: boolean; refunded: boolean; error?: string }>;
   fetchArenaByCode: (joinCode: string) => Promise<ArenaWithMembers | null>;
   fetchArenaById: (id: string) => Promise<ArenaWithMembers | null>;
   fetchMyArenas: () => Promise<void>;
@@ -223,7 +224,8 @@ export const ArenaProvider: React.FC<ArenaProviderProps> = ({ children }) => {
     mode: string,
     targetAmount: number,
     stakeAmount?: number,
-    endsAt?: string
+    endsAt?: string,
+    targetCategory?: string
   ): Promise<Arena> => {
     if (!user) throw new Error('Must be signed in');
 
@@ -236,6 +238,7 @@ export const ArenaProvider: React.FC<ArenaProviderProps> = ({ children }) => {
         join_code: joinCode,
         mode: mode as any,
         target_amount: targetAmount,
+        target_category: targetCategory || null,
         created_by: user.id,
         stake_amount: stakeAmount || null,
         status: 'active', // Start as active immediately
@@ -288,6 +291,88 @@ export const ArenaProvider: React.FC<ArenaProviderProps> = ({ children }) => {
 
     await fetchMyArenas();
     return arena;
+  };
+
+  /**
+   * Cancel/leave an arena (only if user is the only member)
+   * Returns refund status if stakes were involved
+   */
+  const cancelArena = async (arenaId: string): Promise<{ success: boolean; refunded: boolean; error?: string }> => {
+    if (!user) {
+      return { success: false, refunded: false, error: 'Not signed in' };
+    }
+
+    try {
+      // Fetch arena with members
+      const arena = await fetchArenaById(arenaId);
+      if (!arena) {
+        return { success: false, refunded: false, error: 'Arena not found' };
+      }
+
+      // Check if arena is still active
+      if (arena.status !== 'active') {
+        return { success: false, refunded: false, error: 'Arena is not active' };
+      }
+
+      // Get member count
+      const memberCount = arena.arena_members?.length || 0;
+
+      // Only allow cancel if user is the only member (solo arena)
+      if (memberCount > 1) {
+        return { success: false, refunded: false, error: 'Cannot leave arena with other members' };
+      }
+
+      // Check if current user is in the arena
+      const userInArena = arena.arena_members?.some(m => m.user_id === user.id);
+      if (!userInArena) {
+        return { success: false, refunded: false, error: 'You are not in this arena' };
+      }
+
+      // Delete the member record
+      const { error: memberDeleteError } = await supabase
+        .from('arena_members')
+        .delete()
+        .eq('arena_id', arenaId)
+        .eq('user_id', user.id);
+
+      if (memberDeleteError) {
+        console.error('Error deleting member:', memberDeleteError);
+        return { success: false, refunded: false, error: 'Failed to leave arena' };
+      }
+
+      // If user was the only member, delete the arena
+      const { error: arenaDeleteError } = await supabase
+        .from('arenas')
+        .delete()
+        .eq('id', arenaId);
+
+      if (arenaDeleteError) {
+        console.error('Error deleting arena:', arenaDeleteError);
+        // Member was removed, but arena deletion failed - still consider it a success
+      }
+
+      // Handle SOL refund if stakes were involved
+      let refunded = false;
+      if (arena.stake_amount && arena.stake_amount > 0) {
+        // For hackathon, we just mark as refunded since escrow is simulated
+        // In production, this would call a Solana escrow refund function
+        console.log(`Refund of ${arena.stake_amount} SOL for arena ${arenaId}`);
+        refunded = true;
+      }
+
+      // Clear current arena if it was this one
+      if (currentArena?.id === arenaId) {
+        setCurrentArena(null);
+      }
+
+      // Refresh arenas list
+      await fetchMyArenas();
+
+      return { success: true, refunded };
+    } catch (error: any) {
+      console.error('Error canceling arena:', error);
+      return { success: false, refunded: false, error: error.message };
+    }
   };
 
   const fetchArenaByCode = async (joinCode: string): Promise<ArenaWithMembers | null> => {
@@ -419,7 +504,8 @@ export const ArenaProvider: React.FC<ArenaProviderProps> = ({ children }) => {
       transactions,
       arena.created_at,
       arena.target_amount,
-      arena.mode
+      arena.mode,
+      (arena as any).target_category || undefined
     );
 
     if (result.success) {
@@ -511,6 +597,7 @@ export const ArenaProvider: React.FC<ArenaProviderProps> = ({ children }) => {
         currentArena,
         createArena,
         joinArena,
+        cancelArena,
         fetchArenaByCode,
         fetchArenaById,
         fetchMyArenas,

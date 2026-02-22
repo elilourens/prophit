@@ -17,11 +17,76 @@ export interface ArenaPeriodSpending {
 }
 
 /**
+ * Vice category mappings - maps vice IDs to transaction categories/keywords
+ */
+const VICE_CATEGORY_MAPPINGS: { [viceId: string]: { categories: string[]; keywords: string[] } } = {
+  coffee: {
+    categories: ['Coffee', 'Cafes', 'Food & Drink'],
+    keywords: ['starbucks', 'costa', 'coffee', 'cafe', 'latte', 'cappuccino', 'espresso', 'nero', 'pret'],
+  },
+  fast_food: {
+    categories: ['Fast Food', 'Restaurants', 'Food & Drink'],
+    keywords: ['mcdonald', 'burger king', 'kfc', 'subway', 'five guys', 'wendy', 'taco bell', 'chipotle'],
+  },
+  alcohol: {
+    categories: ['Bars & Pubs', 'Alcohol', 'Nightlife'],
+    keywords: ['pub', 'bar', 'beer', 'wine', 'spirits', 'off-licence', 'off license', 'liquor'],
+  },
+  takeaway: {
+    categories: ['Takeaway', 'Food Delivery', 'Restaurants'],
+    keywords: ['deliveroo', 'just eat', 'uber eats', 'doordash', 'grubhub', 'takeaway'],
+  },
+  shopping: {
+    categories: ['Shopping', 'Retail', 'Online Shopping'],
+    keywords: ['amazon', 'asos', 'zara', 'h&m', 'primark', 'shop', 'store'],
+  },
+  subscriptions: {
+    categories: ['Subscriptions', 'Entertainment', 'Streaming'],
+    keywords: ['netflix', 'spotify', 'disney', 'hulu', 'prime', 'apple music', 'youtube premium'],
+  },
+  gambling: {
+    categories: ['Gambling', 'Betting', 'Casino'],
+    keywords: ['bet365', 'paddy power', 'william hill', 'betfair', 'casino', 'poker', 'lottery'],
+  },
+  smoking: {
+    categories: ['Tobacco', 'Vaping'],
+    keywords: ['cigarette', 'tobacco', 'vape', 'juul', 'smoke shop'],
+  },
+};
+
+/**
+ * Check if a transaction matches a vice category
+ */
+function transactionMatchesVice(transaction: Transaction, viceId: string): boolean {
+  const mapping = VICE_CATEGORY_MAPPINGS[viceId];
+  if (!mapping) return false;
+
+  const description = transaction.description.toLowerCase();
+  const category = transaction.category.toLowerCase();
+
+  // Check if category matches
+  for (const cat of mapping.categories) {
+    if (category.includes(cat.toLowerCase())) {
+      return true;
+    }
+  }
+
+  // Check if description contains any keywords
+  for (const keyword of mapping.keywords) {
+    if (description.includes(keyword.toLowerCase())) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Calculate spending for a specific arena period
  * @param transactions - User's transaction array
  * @param arenaStartDate - Arena start date (created_at or joined_at)
  * @param arenaEndDate - Optional arena end date (for completed arenas)
- * @param targetCategory - Optional category filter (for vice_streak mode)
+ * @param targetCategory - Optional category filter (for vice_streak mode) - uses vice ID like 'coffee', 'fast_food', etc.
  */
 export function calculateArenaPeriodSpend(
   transactions: Transaction[],
@@ -43,9 +108,9 @@ export function calculateArenaPeriodSpend(
     );
   });
 
-  // If target category specified (vice_streak mode), filter further
+  // If target category specified (vice_streak mode), filter by vice matching
   const filteredTransactions = targetCategory
-    ? periodTransactions.filter(t => t.category.toLowerCase() === targetCategory.toLowerCase())
+    ? periodTransactions.filter(t => transactionMatchesVice(t, targetCategory))
     : periodTransactions;
 
   // Calculate totals
@@ -89,11 +154,18 @@ export async function syncMemberSpending(
   transactions: Transaction[],
   arenaCreatedAt: string,
   targetAmount?: number,
-  mode?: string
+  mode?: string,
+  targetCategory?: string
 ): Promise<SyncResult> {
   try {
     const arenaStart = new Date(arenaCreatedAt);
-    const spending = calculateArenaPeriodSpend(transactions, arenaStart);
+    // For vice_streak mode, filter by the target category (vice)
+    const spending = calculateArenaPeriodSpend(
+      transactions,
+      arenaStart,
+      undefined,
+      mode === 'vice_streak' ? targetCategory : undefined
+    );
 
     // Get current member data to check existing timestamps
     const { data: currentMember } = await supabase
@@ -212,7 +284,8 @@ export async function syncAllArenaSpending(
           created_at,
           status,
           mode,
-          target_amount
+          target_amount,
+          target_category
         )
       `)
       .eq('user_id', userId);
@@ -232,7 +305,8 @@ export async function syncAllArenaSpending(
           transactions,
           arena.created_at,
           arena.target_amount,
-          arena.mode
+          arena.mode,
+          arena.target_category
         );
         if (result.success) {
           synced++;

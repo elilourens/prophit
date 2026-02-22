@@ -16,7 +16,6 @@ import { ToggleTabs, TabOption } from '../../components/ToggleTabs';
 import { ComparisonChart } from '../../components/ComparisonChart';
 import { CategoryDonut } from '../../components/CategoryDonut';
 import { SpendingAlert } from '../../components/SpendingAlert';
-import { getCachedUserDataset } from '../../services/backendApi';
 
 // Color mapping for categories
 const CATEGORY_COLORS: { [key: string]: string } = {
@@ -87,19 +86,10 @@ export default function HistoryScreen() {
     setActiveTab(tab);
   };
 
-  // Get user's transaction data with error handling
+  // Get user's transaction data from context (Supabase is the source of truth)
   // Using userDataset from context ensures re-renders when transactions change
-  let dataset = null;
-  let transactions: any[] = [];
-  let dataRangeMonths = 24;
-
-  try {
-    dataset = userDataset || getCachedUserDataset();
-    transactions = dataset?.transactions || [];
-    dataRangeMonths = dataset?.summary?.dataRangeMonths || 24;
-  } catch (error) {
-    console.error('Error loading dataset in history:', error);
-  }
+  const transactions = userDataset?.transactions || [];
+  const dataRangeMonths = userDataset?.summary?.dataRangeMonths || 24;
 
   const hasLimitedData = dataRangeMonths < 3;
 

@@ -15,8 +15,10 @@ import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { theme } from '../components/theme';
-import { setUseUploadedData } from '../services/backendApi';
+import { parseFileToTransactions, parsePDFToTransactions } from '../services/backendApi';
+import { syncUploadedDataToSupabase } from '../services/transactionSyncService';
 import { useUserData } from '../contexts/UserDataContext';
+import { useArena } from '../contexts/ArenaContext';
 import { showAlert } from '../utils/crossPlatform';
 
 const { width } = Dimensions.get('window');
@@ -133,6 +135,7 @@ interface SelectedFile {
 export default function OnboardingScreen() {
   const router = useRouter();
   const { reloadUserData } = useUserData();
+  const { user } = useArena();
   const [step, setStep] = useState(0);
   const [selectedSource, setSelectedSource] = useState<DataSourceOption | null>(null);
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
@@ -149,8 +152,7 @@ export default function OnboardingScreen() {
   const handleContinue = () => {
     if (step === 0 && selectedSource) {
       if (selectedSource === 'demo') {
-        // Use demo data - just go to app
-        setUseUploadedData(false);
+        // Use demo data - just go to app (no data to upload)
         router.replace('/(tabs)');
       } else {
         // Go to upload step
@@ -187,65 +189,68 @@ export default function OnboardingScreen() {
       return;
     }
 
-    const isPDFFile = selectedFile.name?.toLowerCase().endsWith('.pdf');
+    if (!user) {
+      showAlert('Error', 'Please log in first');
+      return;
+    }
+
+    const isPDF = selectedFile.name?.toLowerCase().endsWith('.pdf');
     setIsUploading(true);
-    setUploadMessage(isPDFFile ? 'Analyzing PDF...' : 'Processing...');
+    setUploadMessage(isPDF ? 'Analyzing PDF...' : 'Processing...');
 
     try {
-      let fileContent: string;
-
-      const isPDF = isPDFFile;
+      let transactions: { date: string; description: string; amount: number; category: string }[] = [];
 
       if (Platform.OS === 'web') {
         // Web: use fetch to read the file
         const response = await fetch(selectedFile.uri);
         if (isPDF) {
-          // For PDFs on web, read as base64
+          // For PDFs on web, read as base64 and parse via backend
           const blob = await response.blob();
-          fileContent = await new Promise((resolve) => {
+          const base64Content = await new Promise<string>((resolve) => {
             const reader = new FileReader();
-            reader.onloadend = () => {
-              const base64 = (reader.result as string).split(',')[1];
-              resolve(`data:application/pdf;base64,${base64}`);
-            };
+            reader.onloadend = () => resolve(reader.result as string);
             reader.readAsDataURL(blob);
           });
+          transactions = await parsePDFToTransactions(base64Content);
         } else {
-          fileContent = await response.text();
+          const fileContent = await response.text();
+          transactions = parseFileToTransactions(fileContent);
         }
       } else {
         // Native: use expo-file-system
         if (isPDF) {
-          // Read PDF as base64 for backend processing
           const base64Content = await FileSystem.readAsStringAsync(selectedFile.uri, {
             encoding: 'base64' as any,
           });
-          fileContent = `data:application/pdf;base64,${base64Content}`;
+          transactions = await parsePDFToTransactions(`data:application/pdf;base64,${base64Content}`, selectedFile.uri);
         } else {
-          // Text files (CSV, JSON, TXT)
-          fileContent = await FileSystem.readAsStringAsync(selectedFile.uri, {
+          const fileContent = await FileSystem.readAsStringAsync(selectedFile.uri, {
             encoding: 'utf8' as any,
           });
+          transactions = parseFileToTransactions(fileContent);
         }
       }
 
-      // Store the uploaded content and mark as using uploaded data
-      // This may call the backend for PDF parsing
-      // Pass the file URI for React Native (avoids Blob creation issues)
-      const success = await setUseUploadedData(true, fileContent, isPDF ? selectedFile.uri : undefined);
-
-      if (success) {
-        // Reload user data context to use the uploaded data
-        await reloadUserData();
-        // Navigate to app
-        router.replace('/(tabs)');
-      } else {
+      if (transactions.length === 0) {
         showAlert(
           'Parsing Failed',
           'Could not extract transactions from your file. Please try a CSV or JSON export from your bank.',
           [{ text: 'OK' }]
         );
+        setIsUploading(false);
+        return;
       }
+
+      // Sync directly to Supabase
+      setUploadMessage('Syncing to cloud...');
+      const syncResult = await syncUploadedDataToSupabase(user.id, transactions);
+      console.log(`Synced: ${syncResult.added} new, ${syncResult.skipped} duplicates`);
+
+      // Reload user data context
+      await reloadUserData();
+      // Navigate to app
+      router.replace('/(tabs)');
     } catch (error) {
       console.error('Upload error:', error);
       showAlert('Error', 'Failed to process your file. Please try again.');
@@ -267,14 +272,12 @@ export default function OnboardingScreen() {
   };
 
   const handleClose = () => {
-    // Use demo data and go to app (can't go back if this is first screen)
-    setUseUploadedData(false);
+    // Skip onboarding and go to app
     router.replace('/(tabs)');
   };
 
   const handleSkipUpload = () => {
-    // User changed mind, use demo data instead
-    setUseUploadedData(false);
+    // User changed mind, skip upload
     router.replace('/(tabs)');
   };
 
