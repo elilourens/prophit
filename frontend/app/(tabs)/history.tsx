@@ -17,56 +17,28 @@ import { ComparisonChart } from '../../components/ComparisonChart';
 import { CategoryDonut } from '../../components/CategoryDonut';
 import { SpendingAlert } from '../../components/SpendingAlert';
 
-// Color mapping for categories
+// Color mapping for categories - matches design system
 const CATEGORY_COLORS: { [key: string]: string } = {
-  'Groceries': theme.colors.hotCoral,
-  'Dining': theme.colors.midOrange,
-  'Coffee': theme.colors.neonYellow,
+  // Primary categories
+  'Coffee': '#8B4513',           // Brown
+  'Food': theme.colors.hotCoral,
+  'Dining': theme.colors.hotCoral,
   'Transport': theme.colors.deepTeal,
-  'Subscriptions': theme.colors.deepNavy,
-  'Shopping': theme.colors.hotCoral,
+  'Going Out': theme.colors.midOrange,
+  'Groceries': '#4CAF50',        // Green
+  'Takeaway': '#FF9800',         // Orange
+  'Shopping': theme.colors.neonYellow,
+  'Bills': theme.colors.deepNavy,
+  'Subscriptions': '#9C27B0',    // Purple
+  'Health': '#E91E63',           // Pink
+  // Fallback categories
+  'Entertainment': theme.colors.midOrange,
   'Rent': theme.colors.deepNavy,
   'Utilities': theme.colors.deepTeal,
-  'Food & Dining': theme.colors.hotCoral,
-  'Entertainment': theme.colors.midOrange,
-  'Bills': theme.colors.deepNavy,
+  'Other': theme.colors.gray,
+  'Transfer': '#607D8B',         // Blue Grey
+  'Income': '#4CAF50',           // Green
 };
-
-// Default category data as fallback
-const DEFAULT_CATEGORY_DATA = [
-  { name: 'Food & Dining', value: 145, color: theme.colors.hotCoral },
-  { name: 'Transport', value: 67, color: theme.colors.deepTeal },
-  { name: 'Entertainment', value: 89, color: theme.colors.midOrange },
-  { name: 'Shopping', value: 124, color: theme.colors.neonYellow },
-  { name: 'Bills', value: 210, color: theme.colors.deepNavy },
-];
-
-// Default comparison data as fallback
-const DEFAULT_COMPARISON_DATA = [
-  { label: 'Mon', thisWeek: 45, lastWeek: 38 },
-  { label: 'Tue', thisWeek: 32, lastWeek: 42 },
-  { label: 'Wed', thisWeek: 58, lastWeek: 35 },
-  { label: 'Thu', thisWeek: 48, lastWeek: 52 },
-  { label: 'Fri', thisWeek: 72, lastWeek: 45 },
-  { label: 'Sat', thisWeek: 95, lastWeek: 88 },
-  { label: 'Sun', thisWeek: 65, lastWeek: 55 },
-];
-
-// Default alerts data as fallback
-const DEFAULT_ALERTS_DATA = [
-  {
-    category: 'Entertainment',
-    percentageChange: 40,
-    message: 'Entertainment spending 40% higher than usual',
-    severity: 'warning' as const,
-  },
-  {
-    category: 'Food & Dining',
-    percentageChange: 25,
-    message: 'Food spending trending 25% above average',
-    severity: 'info' as const,
-  },
-];
 
 /**
  * History Screen - Spending History / Patterns
