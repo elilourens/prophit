@@ -4,11 +4,12 @@ import {
   Text,
   StyleSheet,
   TextInput,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -190,24 +191,30 @@ export default function AddTransactionScreen() {
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
+          keyboardShouldPersistTaps="always"
         >
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity
-              onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/history')}
+            <Pressable
+              onPress={() => {
+                Keyboard.dismiss();
+                router.canGoBack() ? router.back() : router.replace('/(tabs)/history');
+              }}
               style={styles.backButton}
             >
               <Ionicons name="close" size={24} color={theme.colors.deepNavy} />
-            </TouchableOpacity>
+            </Pressable>
             <Text style={styles.headerTitle}>Log Expense</Text>
             <View style={styles.backButton} />
           </View>
 
           {/* Upload File Section */}
-          <TouchableOpacity
+          <Pressable
             style={styles.uploadSection}
-            onPress={handleUploadFile}
+            onPress={() => {
+              Keyboard.dismiss();
+              handleUploadFile();
+            }}
             disabled={isUploading}
           >
             {isUploading ? (
@@ -224,7 +231,7 @@ export default function AddTransactionScreen() {
                 <Ionicons name="chevron-forward" size={20} color={theme.colors.gray} />
               </>
             )}
-          </TouchableOpacity>
+          </Pressable>
 
           {/* Divider */}
           <View style={styles.dividerContainer}>
@@ -243,7 +250,6 @@ export default function AddTransactionScreen() {
               placeholder="0.00"
               placeholderTextColor={theme.colors.gray}
               keyboardType="decimal-pad"
-              autoFocus
             />
           </View>
           <Text style={styles.expenseHint}>All transactions are logged as expenses</Text>
@@ -285,13 +291,13 @@ export default function AddTransactionScreen() {
             {showMerchantSuggestions && filteredMerchants.length > 0 && (
               <View style={styles.suggestionsContainer}>
                 {filteredMerchants.slice(0, 4).map((merchant) => (
-                  <TouchableOpacity
+                  <Pressable
                     key={merchant}
                     style={styles.suggestionItem}
                     onPress={() => handleMerchantSelect(merchant)}
                   >
                     <Text style={styles.suggestionText}>{merchant}</Text>
-                  </TouchableOpacity>
+                  </Pressable>
                 ))}
               </View>
             )}
@@ -307,14 +313,17 @@ export default function AddTransactionScreen() {
             </Text>
             <View style={styles.categoryGrid}>
               {CATEGORIES.map((cat) => (
-                <TouchableOpacity
+                <Pressable
                   key={cat.name}
                   style={[
                     styles.categoryChip,
                     (category === cat.name || (!category && suggestedCategory === cat.name)) &&
                       styles.categoryChipActive,
                   ]}
-                  onPress={() => setCategory(cat.name)}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    setCategory(cat.name);
+                  }}
                 >
                   <Ionicons
                     name={cat.icon as any}
@@ -334,15 +343,18 @@ export default function AddTransactionScreen() {
                   >
                     {cat.name}
                   </Text>
-                </TouchableOpacity>
+                </Pressable>
               ))}
             </View>
           </View>
 
           {/* Submit Button */}
-          <TouchableOpacity
-            style={[styles.submitButton, !isValid && styles.submitButtonDisabled]}
-            onPress={handleSubmit}
+          <Pressable
+            style={[styles.submitButton, (!isValid || isSubmitting) && styles.submitButtonDisabled]}
+            onPress={() => {
+              Keyboard.dismiss();
+              handleSubmit();
+            }}
             disabled={!isValid || isSubmitting}
           >
             {isSubmitting ? (
@@ -350,10 +362,10 @@ export default function AddTransactionScreen() {
             ) : (
               <>
                 <Ionicons name="add-circle" size={24} color={theme.colors.white} />
-                <Text style={styles.submitButtonText}>Add Transaction</Text>
+                <Text style={styles.submitButtonText}>Add Expense</Text>
               </>
             )}
-          </TouchableOpacity>
+          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
