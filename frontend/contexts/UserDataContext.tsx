@@ -118,64 +118,11 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
         }
       }
 
-      // PRIORITY 4: Check local storage for fake dataset ID
-      const localId = await AsyncStorage.getItem(LOCAL_DATASET_KEY);
-      if (localId) {
-        const id = parseInt(localId, 10);
-        initUserData(id);
-        const dataset = getCachedUserDataset();
-        setUserDataset(dataset);
-        setIsDataLoaded(true);
-        // Sync mock data to Supabase so arenas work
-        if (dataset && dataset.transactions.length > 0) {
-          console.log(`Syncing existing mock dataset ${id} to Supabase...`);
-          syncUploadedDataToSupabase(userId, dataset.transactions).then(result => {
-            console.log(`Mock data synced: ${result.added} new, ${result.skipped} skipped`);
-          }).catch(err => {
-            console.error('Failed to sync mock data:', err);
-          });
-        }
-        return;
-      }
-
-      // PRIORITY 5: Check if user already has a dataset assigned in Supabase
-      const { data: userData, error } = await supabase
-        .from('users')
-        .select('dataset_id')
-        .eq('id', userId)
-        .single();
-
-      if (!error && userData?.dataset_id) {
-        // User has a dataset, load it
-        await AsyncStorage.setItem(LOCAL_DATASET_KEY, String(userData.dataset_id));
-        initUserData(userData.dataset_id);
-        const dataset = getCachedUserDataset();
-        setUserDataset(dataset);
-        setIsDataLoaded(true);
-        // Sync mock data to Supabase so arenas work
-        if (dataset && dataset.transactions.length > 0) {
-          console.log(`Syncing Supabase-assigned mock dataset to Supabase transactions...`);
-          syncUploadedDataToSupabase(userId, dataset.transactions).then(result => {
-            console.log(`Mock data synced: ${result.added} new, ${result.skipped} skipped`);
-          }).catch(err => {
-            console.error('Failed to sync mock data:', err);
-          });
-        }
-        return;
-      }
-
-      // No dataset assigned - assign one now
-      const usedIds = await getUsedDatasetIds();
-      const newDatasetId = getRandomAvailableDatasetId(usedIds);
-
-      if (newDatasetId === null) {
-        // All datasets used, assign random one
-        const randomId = Math.floor(Math.random() * 100) + 1;
-        await assignDatasetToUser(userId, randomId);
-        return;
-      }
-
-      await assignDatasetToUser(userId, newDatasetId);
+      // No data found - user needs to upload data or has cleared their data
+      // Don't auto-assign mock data anymore
+      console.log('No transaction data found - user needs to upload data');
+      setUserDataset(null);
+      setIsDataLoaded(true);
     } catch (error) {
       console.error('Error loading user dataset:', error);
       // Fall back to default dataset
