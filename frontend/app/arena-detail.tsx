@@ -315,12 +315,13 @@ export default function ArenaDetailScreen() {
     }
   }, [currentArena, userDataset, transactionsUpdatedAt]);
 
-  // Sync spending when transactions change
+  // Sync spending when arena loads or transactions change
   useEffect(() => {
     if (currentArena && userDataset?.transactions && user) {
+      console.log('Syncing arena spending...', currentArena.id);
       syncMyArenaSpending(currentArena.id, userDataset.transactions);
     }
-  }, [transactionsUpdatedAt]);
+  }, [currentArena?.id, userDataset?.transactions?.length, transactionsUpdatedAt]);
 
   // Set up realtime subscription
   useEffect(() => {
@@ -347,6 +348,10 @@ export default function ArenaDetailScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     await loadArena();
+    // Also sync spending on refresh
+    if (currentArena && userDataset?.transactions && user) {
+      await syncMyArenaSpending(currentArena.id, userDataset.transactions);
+    }
     setRefreshing(false);
   };
 
