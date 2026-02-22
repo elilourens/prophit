@@ -7,7 +7,6 @@ import {
   Dimensions,
   ActivityIndicator,
   ScrollView,
-  Alert,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +17,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { theme } from '../components/theme';
 import { setUseUploadedData } from '../services/backendApi';
 import { useUserData } from '../contexts/UserDataContext';
+import { showAlert } from '../utils/crossPlatform';
 
 const { width } = Dimensions.get('window');
 
@@ -177,13 +177,13 @@ export default function OnboardingScreen() {
       }
     } catch (error) {
       console.error('File picker error:', error);
-      Alert.alert('Error', 'Failed to select file. Please try again.');
+      showAlert('Error', 'Failed to select file. Please try again.');
     }
   };
 
   const handleUpload = async () => {
     if (!selectedFile) {
-      Alert.alert('Error', 'Please select a file first');
+      showAlert('Error', 'Please select a file first');
       return;
     }
 
@@ -240,7 +240,7 @@ export default function OnboardingScreen() {
         // Navigate to app
         router.replace('/(tabs)');
       } else {
-        Alert.alert(
+        showAlert(
           'Parsing Failed',
           'Could not extract transactions from your file. Please try a CSV or JSON export from your bank.',
           [{ text: 'OK' }]
@@ -248,7 +248,7 @@ export default function OnboardingScreen() {
       }
     } catch (error) {
       console.error('Upload error:', error);
-      Alert.alert('Error', 'Failed to process your file. Please try again.');
+      showAlert('Error', 'Failed to process your file. Please try again.');
     } finally {
       setIsUploading(false);
     }

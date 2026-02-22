@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Clipboard } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { usePro } from '../../contexts/ProContext';
 import { useArena } from '../../contexts/ArenaContext';
 import { useSolana } from '../../contexts/SolanaContext';
 import { DEMO_TRANSACTIONS } from '../../services/backendApi';
+import { showAlert, copyToClipboard } from '../../utils/crossPlatform';
 
 /**
  * Account Screen (Profile Tab)
@@ -65,15 +66,15 @@ export default function ProfileScreen() {
   const { user, isAuthenticated, signOut, myArenas } = useArena();
   const { wallet } = useSolana();
 
-  const handleCopyAddress = () => {
+  const handleCopyAddress = async () => {
     if (wallet) {
-      Clipboard.setString(wallet.publicKey);
-      Alert.alert('Copied', 'Wallet address copied to clipboard');
+      await copyToClipboard(wallet.publicKey);
+      showAlert('Copied', 'Wallet address copied to clipboard');
     }
   };
 
   const handleLogout = () => {
-    Alert.alert(
+    showAlert(
       'Sign Out',
       'Are you sure you want to sign out?',
       [

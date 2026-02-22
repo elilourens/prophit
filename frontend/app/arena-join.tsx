@@ -6,7 +6,6 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Keyboard,
   Linking,
 } from 'react-native';
@@ -18,6 +17,7 @@ import { useArena } from '../contexts/ArenaContext';
 import { useSolana } from '../contexts/SolanaContext';
 import { ArenaWithMembers } from '../types/supabase';
 import { SolanaWalletModal } from '../components/SolanaWalletModal';
+import { showAlert } from '../utils/crossPlatform';
 
 const getModeInfo = (mode: string) => {
   switch (mode) {
@@ -63,7 +63,7 @@ export default function JoinArenaScreen() {
         setWalletConnected(true);
         setShowWalletModal(false);
       } else {
-        Alert.alert('Airdrop Failed', 'Could not get devnet SOL. Try again later.');
+        showAlert('Airdrop Failed', 'Could not get devnet SOL. Try again later.');
       }
     }
   };
@@ -160,7 +160,7 @@ export default function JoinArenaScreen() {
           setJoinTxSignature(escrowResult.signature);
           console.log('Joined escrow:', escrowResult.explorerUrl);
         } else {
-          Alert.alert('Escrow Error', escrowResult.error || 'Failed to join escrow');
+          showAlert('Escrow Error', escrowResult.error || 'Failed to join escrow');
           setIsJoining(false);
           return;
         }
@@ -170,7 +170,7 @@ export default function JoinArenaScreen() {
       await joinArena(foundArena.join_code);
       router.replace(`/arena-detail?id=${foundArena.id}`);
     } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to join arena');
+      showAlert('Error', err.message || 'Failed to join arena');
     } finally {
       setIsJoining(false);
     }

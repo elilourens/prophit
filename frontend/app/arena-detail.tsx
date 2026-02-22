@@ -6,11 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  Share,
   Dimensions,
   Animated,
-  Clipboard,
-  Alert,
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +15,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../components/theme';
 import { useArena } from '../contexts/ArenaContext';
+import { showAlert, copyToClipboard, shareContent } from '../utils/crossPlatform';
 import { useSolana } from '../contexts/SolanaContext';
 import { ArenaMemberWithUser } from '../types/supabase';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -321,19 +319,16 @@ export default function ArenaDetailScreen() {
 
   const handleShare = async () => {
     if (!currentArena) return;
-    try {
-      await Share.share({
-        message: `Join my Prophit Arena! 🏆\n\nCode: ${currentArena.join_code}\n\nDownload Prophit and enter the code to compete!`,
-      });
-    } catch (error) {
-      console.error('Error sharing:', error);
-    }
+    await shareContent(
+      `Join my Prophit Arena! 🏆\n\nCode: ${currentArena.join_code}\n\nDownload Prophit and enter the code to compete!`,
+      'Join my Arena'
+    );
   };
 
-  const handleCopyCode = () => {
+  const handleCopyCode = async () => {
     if (!currentArena) return;
-    Clipboard.setString(currentArena.join_code);
-    Alert.alert('Copied!', 'Arena code copied to clipboard');
+    await copyToClipboard(currentArena.join_code);
+    showAlert('Copied!', 'Arena code copied to clipboard');
   };
 
   if (!currentArena) {

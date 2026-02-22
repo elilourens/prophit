@@ -7,8 +7,6 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  Share,
-  Alert,
   Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,6 +16,7 @@ import { theme } from '../components/theme';
 import { useArena } from '../contexts/ArenaContext';
 import { useSolana } from '../contexts/SolanaContext';
 import { SolanaWalletModal } from '../components/SolanaWalletModal';
+import { showAlert, shareContent } from '../utils/crossPlatform';
 
 type ArenaMode = 'budget_guardian' | 'vice_streak' | 'savings_sprint';
 
@@ -121,20 +120,17 @@ export default function CreateArenaScreen() {
       setCreatedArenaId(arena.id);
       setStep('created');
     } catch (error) {
-      Alert.alert('Error', 'Failed to create arena. Try again!');
+      showAlert('Error', 'Failed to create arena. Try again!');
     } finally {
       setIsCreating(false);
     }
   };
 
   const handleShare = async () => {
-    try {
-      await Share.share({
-        message: `Join my Prophit Arena! \uD83C\uDFC6\n\nCode: ${createdCode}\n\nDownload Prophit and enter the code to compete!`,
-      });
-    } catch (error) {
-      console.error('Error sharing:', error);
-    }
+    await shareContent(
+      `Join my Prophit Arena! 🏆\n\nCode: ${createdCode}\n\nDownload Prophit and enter the code to compete!`,
+      'Join my Arena'
+    );
   };
 
   const handleWalletConnect = async () => {
@@ -149,7 +145,7 @@ export default function CreateArenaScreen() {
         setWalletConnected(true);
         setShowWalletModal(false);
       } else {
-        Alert.alert('Airdrop Failed', 'Could not get devnet SOL. Try again later.');
+        showAlert('Airdrop Failed', 'Could not get devnet SOL. Try again later.');
       }
     }
   };

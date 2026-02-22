@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   Modal,
   KeyboardAvoidingView,
@@ -17,6 +16,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../components/theme';
 import { usePro } from '../contexts/ProContext';
+import { showAlert } from '../utils/crossPlatform';
 
 interface FeatureRowProps {
   text: string;
@@ -147,12 +147,7 @@ export default function UpgradeScreen() {
 
   const handlePayment = async () => {
     if (!isCardValid()) {
-      // Use platform-specific alert
-      if (Platform.OS === 'web') {
-        window.alert('Please fill in all card details');
-      } else {
-        Alert.alert('Incomplete', 'Please fill in all card details');
-      }
+      showAlert('Incomplete', 'Please fill in all card details');
       return;
     }
 
@@ -171,11 +166,7 @@ export default function UpgradeScreen() {
       upgradeToPro();
       setShowSuccessModal(true);
     } catch (error) {
-      if (Platform.OS === 'web') {
-        window.alert('There was an issue processing your payment. Please try again.');
-      } else {
-        Alert.alert('Payment Failed', 'There was an issue processing your payment. Please try again.');
-      }
+      showAlert('Payment Failed', 'There was an issue processing your payment. Please try again.');
     } finally {
       setIsProcessing(false);
     }
