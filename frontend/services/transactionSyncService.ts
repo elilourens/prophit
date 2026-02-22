@@ -100,8 +100,10 @@ export async function saveTransactionsToSupabase(
   let saved = 0;
   let errors = 0;
 
-  // Insert in batches of 100 to avoid request size limits
-  const batchSize = 100;
+  console.log(`Batch inserting ${transactions.length} transactions for user ${userId}`);
+
+  // Insert in batches of 50 to avoid timeouts
+  const batchSize = 50;
   for (let i = 0; i < transactions.length; i += batchSize) {
     const batch = transactions.slice(i, i + batchSize);
     const insertData = batch.map(t => ({
@@ -110,22 +112,31 @@ export async function saveTransactionsToSupabase(
       description: t.description,
       amount: t.amount,
       category: t.category || categorizeTransaction(t.description),
-      timestamp: t.timestamp || `${t.date}T12:00:00Z`, // Use noon if no timestamp provided
+      timestamp: t.timestamp || `${t.date}T12:00:00Z`,
     }));
 
-    const { error } = await supabase
-      .from('transactions')
-      .insert(insertData);
+    console.log(`Inserting batch ${i / batchSize + 1}, ${batch.length} items...`);
 
-    if (error) {
-      console.error('Error saving batch to Supabase:', error);
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert(insertData)
+        .select();
+
+      if (error) {
+        console.error('Batch insert error:', error.message, error.code, error.details);
+        errors += batch.length;
+      } else {
+        console.log(`Batch inserted successfully:`, data?.length || 0, 'rows');
+        saved += batch.length;
+      }
+    } catch (err) {
+      console.error('Batch insert exception:', err);
       errors += batch.length;
-    } else {
-      saved += batch.length;
     }
   }
 
-  console.log(`Saved ${saved} transactions to Supabase, ${errors} errors`);
+  console.log(`Batch insert complete: ${saved} saved, ${errors} errors`);
   return { saved, errors };
 }
 
@@ -168,9 +179,13 @@ export async function syncUploadedDataToSupabase(
   userId: string,
   newTransactions: Transaction[]
 ): Promise<{ added: number; skipped: number }> {
+  console.log('syncUploadedDataToSupabase called with', newTransactions.length, 'transactions');
+
   try {
     // Load existing transactions from Supabase
+    console.log('Loading existing transactions for deduplication...');
     const existingTransactions = await loadTransactionsFromSupabase(userId);
+    console.log('Found', existingTransactions.length, 'existing transactions');
 
     // Find new transactions that don't exist yet
     const transactionsToAdd: Transaction[] = [];
@@ -191,9 +206,13 @@ export async function syncUploadedDataToSupabase(
       }
     }
 
+    console.log('After deduplication:', transactionsToAdd.length, 'to add,', skipped, 'skipped');
+
     // Save new transactions
     if (transactionsToAdd.length > 0) {
+      console.log('Calling saveTransactionsToSupabase...');
       const { saved, errors } = await saveTransactionsToSupabase(userId, transactionsToAdd);
+      console.log('saveTransactionsToSupabase returned:', saved, 'saved,', errors, 'errors');
       return { added: saved, skipped: skipped + errors };
     }
 
