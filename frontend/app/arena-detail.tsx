@@ -467,7 +467,7 @@ export default function ArenaDetailScreen() {
         >
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/arenas')} style={styles.backButton}>
               <Ionicons name="arrow-back" size={24} color={theme.colors.deepNavy} />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
