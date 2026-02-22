@@ -686,6 +686,7 @@ export function getTransactionAnalysis(transactionData: string): Promise<Analysi
 
 /**
  * Generate predictions from local transaction data
+ * Analyzes spending patterns by day of week and category
  */
 function generateLocalPredictions(transactionData: string): {
   calendar: string;
@@ -695,31 +696,66 @@ function generateLocalPredictions(transactionData: string): {
     const data = JSON.parse(transactionData);
     const transactions = data.transactions || [];
 
-    // Analyze spending patterns by category and day of week
+    if (transactions.length === 0) {
+      return { calendar: '', predictions: [] };
+    }
+
+    // Calculate actual date range from data
+    const dates = transactions
+      .map((t: any) => new Date(t.date).getTime())
+      .filter((d: number) => !isNaN(d));
+    const minDate = Math.min(...dates);
+    const maxDate = Math.max(...dates);
+    const dataRangeDays = Math.max(1, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)));
+
+    // Count occurrences of each day of week in the data range
+    const dayOfWeekOccurrences: { [day: number]: number } = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+    for (let d = new Date(minDate); d.getTime() <= maxDate; d.setDate(d.getDate() + 1)) {
+      dayOfWeekOccurrences[d.getDay()]++;
+    }
+
+    // Analyze spending patterns by day of week AND category
+    // dayOfWeekCategoryStats[dayOfWeek][category] = { total, count, amounts }
+    const dayOfWeekCategoryStats: {
+      [day: number]: {
+        [cat: string]: { total: number; count: number; amounts: number[] }
+      }
+    } = {};
+    for (let i = 0; i < 7; i++) {
+      dayOfWeekCategoryStats[i] = {};
+    }
+
+    // Overall category stats for fallback
     const categoryStats: { [cat: string]: { total: number; count: number; amounts: number[] } } = {};
-    const dayOfWeekSpending: { [day: number]: number[] } = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
 
     transactions.forEach((t: any) => {
       if (t.amount < 0 && t.category !== 'Income') {
-        const cat = t.category;
+        const cat = t.category || 'Other';
         const amount = Math.abs(t.amount);
+        const txDate = new Date(t.date);
+        const dayOfWeek = txDate.getDay();
 
+        // Track by day of week + category
+        if (!dayOfWeekCategoryStats[dayOfWeek][cat]) {
+          dayOfWeekCategoryStats[dayOfWeek][cat] = { total: 0, count: 0, amounts: [] };
+        }
+        dayOfWeekCategoryStats[dayOfWeek][cat].total += amount;
+        dayOfWeekCategoryStats[dayOfWeek][cat].count += 1;
+        dayOfWeekCategoryStats[dayOfWeek][cat].amounts.push(amount);
+
+        // Track overall
         if (!categoryStats[cat]) {
           categoryStats[cat] = { total: 0, count: 0, amounts: [] };
         }
         categoryStats[cat].total += amount;
         categoryStats[cat].count += 1;
         categoryStats[cat].amounts.push(amount);
-
-        // Track by day of week
-        const dayOfWeek = new Date(t.date).getDay();
-        dayOfWeekSpending[dayOfWeek].push(amount);
       }
     });
 
     // Generate week-ahead predictions
     const predictions: CalendarPrediction[] = [];
-    const today = new Date('2026-02-21');
+    const today = new Date(); // Use actual current date
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
     for (let i = 0; i < 7; i++) {
@@ -728,40 +764,58 @@ function generateLocalPredictions(transactionData: string): {
       const dayOfWeek = date.getDay();
       const dateStr = date.toISOString().split('T')[0];
 
-      // Get top categories and calculate probabilities based on historical frequency
+      // Get categories that have activity on THIS day of week
+      const dayStats = dayOfWeekCategoryStats[dayOfWeek];
+      const numOccurrences = dayOfWeekOccurrences[dayOfWeek] || 1;
+
       const dayPredictions: CalendarPrediction['predictions'] = [];
 
-      Object.entries(categoryStats)
-        .filter(([cat]) => !['Rent', 'Utilities', 'Subscriptions', 'Transfer', 'Income'].includes(cat))
-        .sort((a, b) => b[1].count - a[1].count)
-        .slice(0, 4)
-        .forEach(([category, stats]) => {
-          const avgAmount = stats.total / stats.count;
-          // Probability based on frequency (how often this category appears)
-          const daysInData = 365;
-          const frequency = stats.count / daysInData;
-          let probability = Math.min(frequency * 1.5, 0.95); // Cap at 95%
+      // Sort categories by frequency on this specific day
+      const sortedCategories = Object.entries(dayStats)
+        .filter(([cat]) => !['Rent', 'Utilities', 'Subscriptions', 'Transfer'].includes(cat))
+        .sort((a, b) => b[1].count - a[1].count);
 
-          // Boost probability on weekends for entertainment/dining
-          if ((dayOfWeek === 5 || dayOfWeek === 6) && ['Dining', 'Entertainment', 'Coffee'].includes(category)) {
-            probability = Math.min(probability * 1.3, 0.95);
-          }
+      // Take top 4 categories for this day
+      sortedCategories.slice(0, 4).forEach(([category, stats]) => {
+        const avgAmount = stats.total / stats.count;
 
-          // Friday boost for drinks/dining
-          if (dayOfWeek === 5 && ['Dining', 'Entertainment'].includes(category)) {
-            probability = Math.min(probability * 1.4, 0.95);
-          }
+        // Probability = how often this category appears on this day of week
+        // e.g., if Coffee appears 3 times on 4 Mondays, probability = 75%
+        let probability = stats.count / numOccurrences;
+        probability = Math.min(probability, 0.95); // Cap at 95%
+        probability = Math.max(probability, 0.05); // Floor at 5%
 
-          dayPredictions.push({
-            category,
-            description: getCategoryDescription(category, dayOfWeek),
-            probability: Math.round(probability * 100) / 100,
-            amount: Math.round(avgAmount * 100) / 100,
-            icon: getCategoryIcon(category),
-          });
+        dayPredictions.push({
+          category,
+          description: getCategoryDescription(category, dayOfWeek),
+          probability: Math.round(probability * 100) / 100,
+          amount: Math.round(avgAmount * 100) / 100,
+          icon: getCategoryIcon(category),
         });
+      });
 
-      // Calculate total expected
+      // If no predictions for this day, use overall top categories with lower probability
+      if (dayPredictions.length === 0) {
+        Object.entries(categoryStats)
+          .filter(([cat]) => !['Rent', 'Utilities', 'Subscriptions', 'Transfer'].includes(cat))
+          .sort((a, b) => b[1].count - a[1].count)
+          .slice(0, 3)
+          .forEach(([category, stats]) => {
+            const avgAmount = stats.total / stats.count;
+            // Lower probability since we don't have day-specific data
+            const probability = Math.min((stats.count / dataRangeDays) * 0.5, 0.4);
+
+            dayPredictions.push({
+              category,
+              description: getCategoryDescription(category, dayOfWeek),
+              probability: Math.round(probability * 100) / 100,
+              amount: Math.round(avgAmount * 100) / 100,
+              icon: getCategoryIcon(category),
+            });
+          });
+      }
+
+      // Calculate total expected spend for the day
       const totalExpected = dayPredictions.reduce((sum, p) => sum + (p.amount * p.probability), 0);
 
       predictions.push({
