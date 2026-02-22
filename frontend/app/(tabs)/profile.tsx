@@ -96,15 +96,43 @@ export default function ProfileScreen() {
       let fileContent: string;
       const isPDF = file.name?.toLowerCase().endsWith('.pdf');
 
-      if (isPDF) {
-        const base64Content = await FileSystem.readAsStringAsync(file.uri, {
-          encoding: 'base64' as any,
-        });
-        fileContent = `data:application/pdf;base64,${base64Content}`;
+      if (Platform.OS === 'web') {
+        // On web, use FileReader API
+        // The file object on web has a 'file' property with the actual File/Blob
+        const webFile = (file as any).file as File;
+
+        if (isPDF) {
+          // Read as base64 for PDFs
+          fileContent = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const result = reader.result as string;
+              resolve(result); // Already includes data:application/pdf;base64, prefix
+            };
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsDataURL(webFile);
+          });
+        } else {
+          // Read as text for JSON/CSV
+          fileContent = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsText(webFile);
+          });
+        }
       } else {
-        fileContent = await FileSystem.readAsStringAsync(file.uri, {
-          encoding: 'utf8' as any,
-        });
+        // On native, use expo-file-system
+        if (isPDF) {
+          const base64Content = await FileSystem.readAsStringAsync(file.uri, {
+            encoding: 'base64' as any,
+          });
+          fileContent = `data:application/pdf;base64,${base64Content}`;
+        } else {
+          fileContent = await FileSystem.readAsStringAsync(file.uri, {
+            encoding: 'utf8' as any,
+          });
+        }
       }
 
       // Process the upload
