@@ -178,6 +178,7 @@ export async function syncMemberSpending(
     // Prepare update data
     const updateData: Record<string, any> = {
       current_spend: spending.totalSpend,
+      current_savings: mode === 'savings_sprint' ? spending.totalSpend : 0,
       last_synced_at: new Date().toISOString(),
     };
 

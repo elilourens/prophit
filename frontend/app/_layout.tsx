@@ -57,93 +57,93 @@ export default function RootLayout() {
           <UserDataProvider>
             <SolanaProvider>
               <AuthGate>
-            <StatusBar style="dark" />
-            <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: {
-                backgroundColor: theme.colors.background,
-              },
-              animation: 'slide_from_right',
-            }}
-          >
-            <Stack.Screen
-              name="login"
-              options={{
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="(tabs)"
-              options={{
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="onboarding"
-              options={{
-                headerShown: false,
-                presentation: 'modal',
-                animation: 'slide_from_bottom',
-              }}
-            />
-            <Stack.Screen
-              name="chat"
-              options={{
-                headerShown: false,
-                presentation: 'modal',
-                animation: 'slide_from_bottom',
-              }}
-            />
-            <Stack.Screen
-              name="upgrade"
-              options={{
-                headerShown: false,
-                presentation: 'modal',
-                animation: 'slide_from_bottom',
-              }}
-            />
-            <Stack.Screen
-              name="arena-onboarding"
-              options={{
-                headerShown: false,
-                presentation: 'modal',
-                animation: 'slide_from_bottom',
-              }}
-            />
-            <Stack.Screen
-              name="arena-create"
-              options={{
-                headerShown: false,
-                presentation: 'card',
-                animation: 'slide_from_right',
-              }}
-            />
-            <Stack.Screen
-              name="arena-join"
-              options={{
-                headerShown: false,
-                presentation: 'card',
-                animation: 'slide_from_right',
-              }}
-            />
-            <Stack.Screen
-              name="arena-detail"
-              options={{
-                headerShown: false,
-                presentation: 'card',
-                animation: 'slide_from_right',
-              }}
-            />
-            <Stack.Screen
-              name="arena-results"
-              options={{
-                headerShown: false,
-                presentation: 'card',
-                animation: 'slide_from_right',
-              }}
-            />
-          </Stack>
+                <StatusBar style="dark" />
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: {
+                      backgroundColor: theme.colors.background,
+                    },
+                    animation: 'slide_from_right',
+                  }}
+                >
+                  <Stack.Screen
+                    name="login"
+                    options={{
+                      headerShown: false,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="(tabs)"
+                    options={{
+                      headerShown: false,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="onboarding"
+                    options={{
+                      headerShown: false,
+                      presentation: 'modal',
+                      animation: 'slide_from_bottom',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="chat"
+                    options={{
+                      headerShown: false,
+                      presentation: 'modal',
+                      animation: 'slide_from_bottom',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="upgrade"
+                    options={{
+                      headerShown: false,
+                      presentation: 'modal',
+                      animation: 'slide_from_bottom',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="arena-onboarding"
+                    options={{
+                      headerShown: false,
+                      presentation: 'modal',
+                      animation: 'slide_from_bottom',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="arena-create"
+                    options={{
+                      headerShown: false,
+                      presentation: 'card',
+                      animation: 'slide_from_right',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="arena-join"
+                    options={{
+                      headerShown: false,
+                      presentation: 'card',
+                      animation: 'slide_from_right',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="arena-detail"
+                    options={{
+                      headerShown: false,
+                      presentation: 'card',
+                      animation: 'slide_from_right',
+                    }}
+                  />
+                  <Stack.Screen
+                    name="arena-results"
+                    options={{
+                      headerShown: false,
+                      presentation: 'card',
+                      animation: 'slide_from_right',
+                    }}
+                  />
+                </Stack>
               </AuthGate>
             </SolanaProvider>
           </UserDataProvider>

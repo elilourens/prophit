@@ -68,10 +68,12 @@ const PulsingDot: React.FC = () => {
       <Animated.View
         style={[
           styles.liveDotPulse,
-          { transform: [{ scale: pulseAnim }], opacity: pulseAnim.interpolate({
-            inputRange: [1, 1.4],
-            outputRange: [0.6, 0],
-          }) },
+          {
+            transform: [{ scale: pulseAnim }], opacity: pulseAnim.interpolate({
+              inputRange: [1, 1.4],
+              outputRange: [0.6, 0],
+            })
+          },
         ]}
       />
       <View style={styles.liveDot} />
@@ -326,15 +328,15 @@ export default function ArenaDetailScreen() {
     }
   }, [currentArena, userDataset, transactionsUpdatedAt]);
 
-  // Sync spending once when arena first loads (not on every change - that causes loops)
-  const [hasSynced, setHasSynced] = useState(false);
+  // Sync spending when arena loads or transactions change
+  const lastSyncRef = useRef<number>(0);
   useEffect(() => {
-    if (currentArena && userDataset?.transactions && user && !hasSynced) {
+    if (currentArena && userDataset?.transactions && user && transactionsUpdatedAt !== lastSyncRef.current) {
       console.log('Syncing arena spending...', currentArena.id);
       syncMyArenaSpending(currentArena.id, userDataset.transactions);
-      setHasSynced(true);
+      lastSyncRef.current = transactionsUpdatedAt;
     }
-  }, [currentArena?.id, userDataset?.transactions?.length, hasSynced]);
+  }, [currentArena?.id, userDataset?.transactions?.length, transactionsUpdatedAt]);
 
   // Set up realtime subscription
   useEffect(() => {
@@ -409,7 +411,7 @@ export default function ArenaDetailScreen() {
           const winnerAddress = winnerIsCurrentUser && wallet?.publicKey ? wallet.publicKey : null;
 
           if (winnerAddress) {
-            const prizeAmount = currentArena.stake_amount * members.length;
+            const prizeAmount = currentArena.stake_amount * (currentArena.arena_members?.length || 0);
             const payoutResult = await resolveArenaEscrowWithPayout(
               currentArena.join_code,
               winnerAddress,
@@ -426,7 +428,7 @@ export default function ArenaDetailScreen() {
             setSettlementResult({
               success: true,
               winnerUsername: result.winnerUsername,
-              prizeAmount: currentArena.stake_amount * members.length,
+              prizeAmount: currentArena.stake_amount * (currentArena.arena_members?.length || 0),
             });
           }
         }
