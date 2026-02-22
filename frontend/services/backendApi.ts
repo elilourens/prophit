@@ -686,7 +686,7 @@ export function getTransactionAnalysis(transactionData: string): Promise<Analysi
 
 /**
  * Generate predictions from local transaction data
- * Analyzes spending patterns by day of week and category
+ * Analyzes spending patterns by day of week and ACTUAL MERCHANT names
  */
 function generateLocalPredictions(transactionData: string): {
   calendar: string;
@@ -714,48 +714,53 @@ function generateLocalPredictions(transactionData: string): {
       dayOfWeekOccurrences[d.getDay()]++;
     }
 
-    // Analyze spending patterns by day of week AND category
-    // dayOfWeekCategoryStats[dayOfWeek][category] = { total, count, amounts }
-    const dayOfWeekCategoryStats: {
+    // Analyze spending patterns by day of week AND MERCHANT (not category)
+    // dayOfWeekMerchantStats[dayOfWeek][merchant] = { total, count, category }
+    const dayOfWeekMerchantStats: {
       [day: number]: {
-        [cat: string]: { total: number; count: number; amounts: number[] }
+        [merchant: string]: { total: number; count: number; category: string }
       }
     } = {};
     for (let i = 0; i < 7; i++) {
-      dayOfWeekCategoryStats[i] = {};
+      dayOfWeekMerchantStats[i] = {};
     }
 
-    // Overall category stats for fallback
-    const categoryStats: { [cat: string]: { total: number; count: number; amounts: number[] } } = {};
+    // Overall merchant stats for fallback
+    const merchantStats: { [merchant: string]: { total: number; count: number; category: string } } = {};
 
     transactions.forEach((t: any) => {
       if (t.amount < 0 && t.category !== 'Income') {
-        const cat = t.category || 'Other';
+        // Use the actual description/merchant name
+        const merchant = t.description || t.name || t.merchant || 'Unknown';
+        const category = t.category || 'Other';
         const amount = Math.abs(t.amount);
         const txDate = new Date(t.date);
         const dayOfWeek = txDate.getDay();
 
-        // Track by day of week + category
-        if (!dayOfWeekCategoryStats[dayOfWeek][cat]) {
-          dayOfWeekCategoryStats[dayOfWeek][cat] = { total: 0, count: 0, amounts: [] };
+        // Skip transfers, rent, utilities (one-time or monthly, not predictable daily)
+        if (['Transfer', 'Rent', 'Utilities'].includes(category)) {
+          return;
         }
-        dayOfWeekCategoryStats[dayOfWeek][cat].total += amount;
-        dayOfWeekCategoryStats[dayOfWeek][cat].count += 1;
-        dayOfWeekCategoryStats[dayOfWeek][cat].amounts.push(amount);
+
+        // Track by day of week + merchant
+        if (!dayOfWeekMerchantStats[dayOfWeek][merchant]) {
+          dayOfWeekMerchantStats[dayOfWeek][merchant] = { total: 0, count: 0, category };
+        }
+        dayOfWeekMerchantStats[dayOfWeek][merchant].total += amount;
+        dayOfWeekMerchantStats[dayOfWeek][merchant].count += 1;
 
         // Track overall
-        if (!categoryStats[cat]) {
-          categoryStats[cat] = { total: 0, count: 0, amounts: [] };
+        if (!merchantStats[merchant]) {
+          merchantStats[merchant] = { total: 0, count: 0, category };
         }
-        categoryStats[cat].total += amount;
-        categoryStats[cat].count += 1;
-        categoryStats[cat].amounts.push(amount);
+        merchantStats[merchant].total += amount;
+        merchantStats[merchant].count += 1;
       }
     });
 
     // Generate week-ahead predictions
     const predictions: CalendarPrediction[] = [];
-    const today = new Date(); // Use actual current date
+    const today = new Date();
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
     for (let i = 0; i < 7; i++) {
@@ -764,53 +769,49 @@ function generateLocalPredictions(transactionData: string): {
       const dayOfWeek = date.getDay();
       const dateStr = date.toISOString().split('T')[0];
 
-      // Get categories that have activity on THIS day of week
-      const dayStats = dayOfWeekCategoryStats[dayOfWeek];
+      // Get merchants that have activity on THIS day of week
+      const dayStats = dayOfWeekMerchantStats[dayOfWeek];
       const numOccurrences = dayOfWeekOccurrences[dayOfWeek] || 1;
 
       const dayPredictions: CalendarPrediction['predictions'] = [];
 
-      // Sort categories by frequency on this specific day
-      const sortedCategories = Object.entries(dayStats)
-        .filter(([cat]) => !['Rent', 'Utilities', 'Subscriptions', 'Transfer'].includes(cat))
+      // Sort merchants by frequency on this specific day
+      const sortedMerchants = Object.entries(dayStats)
         .sort((a, b) => b[1].count - a[1].count);
 
-      // Take top 4 categories for this day
-      sortedCategories.slice(0, 4).forEach(([category, stats]) => {
+      // Take top 5 merchants for this day
+      sortedMerchants.slice(0, 5).forEach(([merchant, stats]) => {
         const avgAmount = stats.total / stats.count;
 
-        // Probability = how often this category appears on this day of week
-        // e.g., if Coffee appears 3 times on 4 Mondays, probability = 75%
+        // Probability = how often this merchant appears on this day of week
         let probability = stats.count / numOccurrences;
-        probability = Math.min(probability, 0.95); // Cap at 95%
-        probability = Math.max(probability, 0.05); // Floor at 5%
+        probability = Math.min(probability, 0.95);
+        probability = Math.max(probability, 0.05);
 
         dayPredictions.push({
-          category,
-          description: getCategoryDescription(category, dayOfWeek),
+          category: stats.category,
+          description: merchant, // Use actual merchant name!
           probability: Math.round(probability * 100) / 100,
           amount: Math.round(avgAmount * 100) / 100,
-          icon: getCategoryIcon(category),
+          icon: getCategoryIcon(stats.category),
         });
       });
 
-      // If no predictions for this day, use overall top categories with lower probability
+      // If no predictions for this day, use overall top merchants with lower probability
       if (dayPredictions.length === 0) {
-        Object.entries(categoryStats)
-          .filter(([cat]) => !['Rent', 'Utilities', 'Subscriptions', 'Transfer'].includes(cat))
+        Object.entries(merchantStats)
           .sort((a, b) => b[1].count - a[1].count)
-          .slice(0, 3)
-          .forEach(([category, stats]) => {
+          .slice(0, 4)
+          .forEach(([merchant, stats]) => {
             const avgAmount = stats.total / stats.count;
-            // Lower probability since we don't have day-specific data
             const probability = Math.min((stats.count / dataRangeDays) * 0.5, 0.4);
 
             dayPredictions.push({
-              category,
-              description: getCategoryDescription(category, dayOfWeek),
+              category: stats.category,
+              description: merchant,
               probability: Math.round(probability * 100) / 100,
               amount: Math.round(avgAmount * 100) / 100,
-              icon: getCategoryIcon(category),
+              icon: getCategoryIcon(stats.category),
             });
           });
       }
