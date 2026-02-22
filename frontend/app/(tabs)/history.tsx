@@ -494,7 +494,8 @@ const styles = StyleSheet.create({
     ...theme.cardShadow,
   },
   bottomSpacer: {
-    height: 100,
+    minHeight: 120,
+    paddingBottom: 24,
   },
   loadingContainer: {
     padding: theme.spacing.xxl,
