@@ -20,7 +20,8 @@ import { syncAllArenaSpending } from '../services/arenaSyncService';
 import { useUserData } from '../contexts/UserDataContext';
 import { useArena } from '../contexts/ArenaContext';
 import { showAlert, readFileAsString, readFileAsBase64 } from '../utils/crossPlatform';
-import sampleTransactions from '../assets/sample-transactions.json';
+// Sample transactions for demo mode
+const sampleTransactions = require('../assets/sample-transactions.json');
 
 const { width } = Dimensions.get('window');
 
@@ -163,7 +164,14 @@ export default function OnboardingScreen() {
         setUploadMessage('Loading sample data...');
 
         try {
+          console.log('Sample data object:', JSON.stringify(sampleTransactions).substring(0, 200));
           const transactions = sampleTransactions.transactions;
+          if (!transactions || transactions.length === 0) {
+            console.error('No transactions in sample data!');
+            showAlert('Error', 'Sample data is empty');
+            setIsUploading(false);
+            return;
+          }
           console.log('Loading', transactions.length, 'sample transactions...');
 
           const syncResult = await syncUploadedDataToSupabase(user.id, transactions);
