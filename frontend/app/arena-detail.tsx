@@ -321,10 +321,15 @@ export default function ArenaDetailScreen() {
 
   // Calculate user's spending for this arena
   useEffect(() => {
-    if (currentArena && userDataset?.transactions) {
-      const arenaStart = new Date(currentArena.created_at);
-      const spending = calculateArenaPeriodSpend(userDataset.transactions, arenaStart);
-      setMySpending(spending.totalSpend);
+    if (currentArena) {
+      if (userDataset?.transactions && userDataset.transactions.length > 0) {
+        const arenaStart = new Date(currentArena.created_at);
+        const spending = calculateArenaPeriodSpend(userDataset.transactions, arenaStart);
+        setMySpending(spending.totalSpend);
+      } else {
+        // No transactions yet - set to 0 so the card still shows
+        setMySpending(0);
+      }
     }
   }, [currentArena, userDataset, transactionsUpdatedAt]);
 
