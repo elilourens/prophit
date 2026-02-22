@@ -49,11 +49,10 @@ export default function AddTransactionScreen() {
   const { addTransaction, reloadUserData } = useUserData();
   const { user } = useArena();
 
-  // Form state
+  // Form state - expenses only (for arena tracking)
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
-  const [isExpense, setIsExpense] = useState(true);
   const [category, setCategory] = useState('');
   const [showMerchantSuggestions, setShowMerchantSuggestions] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -101,7 +100,7 @@ export default function AddTransactionScreen() {
         }
         await reloadUserData();
         showAlert('Success', `Transactions imported and merged with your existing data!`);
-        router.back();
+        router.canGoBack() ? router.back() : router.replace('/(tabs)/history');
       } else {
         showAlert('Upload Failed', 'Could not extract transactions from your file.');
       }
@@ -130,19 +129,21 @@ export default function AddTransactionScreen() {
 
   const handleSubmit = async () => {
     if (!description.trim()) {
+      showAlert('Missing Info', 'Please enter a description');
       return;
     }
 
     const parsedAmount = parseFloat(amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      showAlert('Missing Info', 'Please enter a valid amount');
       return;
     }
 
     setIsSubmitting(true);
 
     try {
-      // Calculate final amount (negative for expenses)
-      const finalAmount = isExpense ? -Math.abs(parsedAmount) : Math.abs(parsedAmount);
+      // Always negative for expenses (this is for arena spending tracking)
+      const finalAmount = -Math.abs(parsedAmount);
 
       // Use selected category or suggested category
       const finalCategory = category || suggestedCategory || 'Other';
@@ -160,7 +161,7 @@ export default function AddTransactionScreen() {
       });
 
       // Navigate back
-      router.back();
+      router.canGoBack() ? router.back() : router.replace('/(tabs)/history');
     } catch (error) {
       console.error('Error adding transaction:', error);
     } finally {
@@ -193,10 +194,13 @@ export default function AddTransactionScreen() {
         >
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <TouchableOpacity
+              onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/history')}
+              style={styles.backButton}
+            >
               <Ionicons name="close" size={24} color={theme.colors.deepNavy} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Add Transaction</Text>
+            <Text style={styles.headerTitle}>Log Expense</Text>
             <View style={styles.backButton} />
           </View>
 
@@ -229,39 +233,9 @@ export default function AddTransactionScreen() {
             <View style={styles.dividerLine} />
           </View>
 
-          {/* Transaction Type Toggle */}
-          <View style={styles.typeToggle}>
-            <TouchableOpacity
-              style={[styles.typeButton, isExpense && styles.typeButtonActive]}
-              onPress={() => setIsExpense(true)}
-            >
-              <Ionicons
-                name="arrow-down-circle"
-                size={24}
-                color={isExpense ? theme.colors.white : theme.colors.hotCoral}
-              />
-              <Text style={[styles.typeButtonText, isExpense && styles.typeButtonTextActive]}>
-                Expense
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.typeButton, !isExpense && styles.typeButtonActiveIncome]}
-              onPress={() => setIsExpense(false)}
-            >
-              <Ionicons
-                name="arrow-up-circle"
-                size={24}
-                color={!isExpense ? theme.colors.white : theme.colors.deepTeal}
-              />
-              <Text style={[styles.typeButtonText, !isExpense && styles.typeButtonTextActive]}>
-                Income
-              </Text>
-            </TouchableOpacity>
-          </View>
-
           {/* Amount Input */}
           <View style={styles.amountContainer}>
-            <Text style={styles.currencySymbol}>-</Text>
+            <Text style={styles.currencySymbol}>€</Text>
             <TextInput
               style={styles.amountInput}
               value={amount}
@@ -272,6 +246,7 @@ export default function AddTransactionScreen() {
               autoFocus
             />
           </View>
+          <Text style={styles.expenseHint}>All transactions are logged as expenses</Text>
 
           {/* Date Input */}
           <View style={styles.inputGroup}>
@@ -463,39 +438,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.colors.textSecondary,
   },
-  typeToggle: {
-    flexDirection: 'row',
-    gap: theme.spacing.md,
-    marginBottom: theme.spacing.xl,
-  },
-  typeButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing.sm,
-    paddingVertical: theme.spacing.md,
-    borderRadius: theme.borderRadius.lg,
-    backgroundColor: theme.colors.white,
-    borderWidth: 2,
-    borderColor: theme.colors.lightGray,
-  },
-  typeButtonActive: {
-    backgroundColor: theme.colors.hotCoral,
-    borderColor: theme.colors.hotCoral,
-  },
-  typeButtonActiveIncome: {
-    backgroundColor: theme.colors.deepTeal,
-    borderColor: theme.colors.deepTeal,
-  },
-  typeButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.deepNavy,
-  },
-  typeButtonTextActive: {
-    color: theme.colors.white,
-  },
   amountContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -514,6 +456,12 @@ const styles = StyleSheet.create({
     color: theme.colors.deepNavy,
     minWidth: 150,
     textAlign: 'center',
+  },
+  expenseHint: {
+    textAlign: 'center',
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.lg,
   },
   inputGroup: {
     marginBottom: theme.spacing.lg,
