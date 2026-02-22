@@ -15,7 +15,7 @@ interface SolanaContextType {
   error: string | null;
 
   // Wallet methods
-  initializeWallet: () => Promise<void>;
+  initializeWallet: (userId: string) => Promise<void>;
   refreshBalance: () => Promise<void>;
   requestAirdrop: () => Promise<TransactionResult>;
 
@@ -50,23 +50,26 @@ export const SolanaProvider: React.FC<SolanaProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  // Initialize wallet on mount
-  useEffect(() => {
-    initializeWallet();
-  }, []);
+  // Initialize wallet for a specific user (called when user logs in)
+  const initializeWallet = async (userId: string) => {
+    // Skip if already initialized for this user
+    if (currentUserId === userId && isInitialized && wallet) {
+      return;
+    }
 
-  const initializeWallet = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const walletData = await solanaService.initializeWallet();
+      const walletData = await solanaService.initializeWallet(userId);
       setWallet(walletData);
       setIsInitialized(true);
+      setCurrentUserId(userId);
 
       if (walletData.isNew) {
-        console.log('New wallet created and airdropped!');
+        console.log('New wallet created and funded with 0.15 SOL!');
       }
     } catch (err: any) {
       console.error('Failed to initialize wallet:', err);

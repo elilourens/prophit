@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -84,8 +84,15 @@ const VICE_CATEGORIES: ViceCategory[] = [
 ];
 
 export default function CreateArenaScreen() {
-  const { createArena } = useArena();
-  const { wallet, isInitialized, createArenaEscrow, requestAirdrop, getExplorerUrl } = useSolana();
+  const { createArena, user } = useArena();
+  const { wallet, isInitialized, createArenaEscrow, requestAirdrop, getExplorerUrl, initializeWallet } = useSolana();
+
+  // Initialize wallet when user is available
+  useEffect(() => {
+    if (user?.id && !isInitialized) {
+      initializeWallet(user.id);
+    }
+  }, [user?.id, isInitialized]);
   const [step, setStep] = useState<'mode' | 'details' | 'stake' | 'created'>('mode');
   const [selectedMode, setSelectedMode] = useState<ArenaMode | null>(null);
   const [arenaName, setArenaName] = useState('');

@@ -130,13 +130,20 @@ const ResultRow: React.FC<{
 export default function ArenaResultsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user, fetchArenaById, currentArena, setCurrentArena, getArenaWinner } = useArena();
-  const { wallet, resolveArenaEscrowWithPayout, getExplorerUrl, getEscrowInfo } = useSolana();
+  const { wallet, resolveArenaEscrowWithPayout, getExplorerUrl, getEscrowInfo, isInitialized, initializeWallet } = useSolana();
   const [loading, setLoading] = useState(true);
   const [isClaiming, setIsClaiming] = useState(false);
   const [payoutTxSignature, setPayoutTxSignature] = useState<string | null>(null);
   const [escrowBalance, setEscrowBalance] = useState<number>(0);
   const [hasClaimed, setHasClaimed] = useState(false);
   const [payoutError, setPayoutError] = useState<string | null>(null);
+
+  // Initialize wallet when user is available
+  useEffect(() => {
+    if (user?.id && !isInitialized) {
+      initializeWallet(user.id);
+    }
+  }, [user?.id, isInitialized]);
 
   useEffect(() => {
     loadArena();

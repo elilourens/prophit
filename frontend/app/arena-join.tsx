@@ -34,7 +34,14 @@ const getModeInfo = (mode: string) => {
 
 export default function JoinArenaScreen() {
   const { fetchArenaByCode, joinArena, user } = useArena();
-  const { wallet, isInitialized, joinArenaEscrow, requestAirdrop, getExplorerUrl } = useSolana();
+  const { wallet, isInitialized, joinArenaEscrow, requestAirdrop, getExplorerUrl, initializeWallet } = useSolana();
+
+  // Initialize wallet when user is available
+  useEffect(() => {
+    if (user?.id && !isInitialized) {
+      initializeWallet(user.id);
+    }
+  }, [user?.id, isInitialized]);
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [isSearching, setIsSearching] = useState(false);
   const [isJoining, setIsJoining] = useState(false);

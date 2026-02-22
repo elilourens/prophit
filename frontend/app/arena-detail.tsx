@@ -271,7 +271,14 @@ export default function ArenaDetailScreen() {
     getArenaWinner,
   } = useArena();
   const { userDataset, transactionsUpdatedAt } = useUserData();
-  const { getEscrowInfo, wallet, resolveArenaEscrowWithPayout } = useSolana();
+  const { getEscrowInfo, wallet, resolveArenaEscrowWithPayout, isInitialized, initializeWallet } = useSolana();
+
+  // Initialize wallet when user is available
+  useEffect(() => {
+    if (user?.id && !isInitialized) {
+      initializeWallet(user.id);
+    }
+  }, [user?.id, isInitialized]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [channel, setChannel] = useState<RealtimeChannel | null>(null);

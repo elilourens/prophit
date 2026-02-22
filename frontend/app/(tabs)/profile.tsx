@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -68,9 +68,16 @@ const InfoRow: React.FC<InfoRowProps> = ({ icon, label, value }) => {
 export default function ProfileScreen() {
   const { isPro } = usePro();
   const { user, isAuthenticated, signOut, myArenas } = useArena();
-  const { wallet } = useSolana();
+  const { wallet, isInitialized, initializeWallet } = useSolana();
   const { reloadUserData, userDataset } = useUserData();
   const [isUploading, setIsUploading] = useState(false);
+
+  // Initialize wallet when user is available
+  useEffect(() => {
+    if (user?.id && !isInitialized) {
+      initializeWallet(user.id);
+    }
+  }, [user?.id, isInitialized]);
 
   const handleCopyAddress = async () => {
     if (wallet) {

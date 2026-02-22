@@ -20,7 +20,7 @@ global.Buffer = global.Buffer || Buffer;
 
 // Constants
 const DEVNET_URL = 'https://api.devnet.solana.com';
-const WALLET_STORAGE_KEY = '@prophit_solana_wallet';
+const WALLET_STORAGE_KEY_PREFIX = '@prophit_solana_wallet_'; // Append userId for per-user wallets
 const AIRDROP_AMOUNT = 2 * LAMPORTS_PER_SOL; // 2 SOL for testing
 const NEW_USER_AIRDROP = 150000000; // 0.15 SOL in lamports (150,000,000 lamports)
 
@@ -72,12 +72,18 @@ class SolanaService {
   private wallet: Keypair | null = null;
   private faucetWallet: Keypair;
   private programId: PublicKey;
+  private currentUserId: string | null = null;
 
   constructor() {
     this.connection = new Connection(DEVNET_URL, 'confirmed');
     this.programId = new PublicKey(PROGRAM_ID);
     // Initialize faucet wallet
     this.faucetWallet = Keypair.fromSecretKey(FAUCET_WALLET_SECRET);
+  }
+
+  // Get storage key for current user
+  private getStorageKey(userId: string): string {
+    return `${WALLET_STORAGE_KEY_PREFIX}${userId}`;
   }
 
   // Fund a new wallet from the faucet (0.15 SOL)
@@ -113,11 +119,19 @@ class SolanaService {
     }
   }
 
-  // Initialize wallet - load from storage or create new
-  async initializeWallet(): Promise<SolanaWallet> {
+  // Initialize wallet - load from storage or create new (per-user)
+  async initializeWallet(userId?: string): Promise<SolanaWallet> {
     try {
-      // Try to load existing wallet
-      const stored = await AsyncStorage.getItem(WALLET_STORAGE_KEY);
+      // If no userId provided, we can't create a per-user wallet
+      if (!userId) {
+        throw new Error('User ID required to initialize wallet');
+      }
+
+      this.currentUserId = userId;
+      const storageKey = this.getStorageKey(userId);
+
+      // Try to load existing wallet for this user
+      const stored = await AsyncStorage.getItem(storageKey);
 
       if (stored) {
         const { secretKey } = JSON.parse(stored);
@@ -134,13 +148,13 @@ class SolanaService {
         };
       }
 
-      // Create new wallet
+      // Create new wallet for this user
       this.wallet = Keypair.generate();
       const secretKeyBase64 = Buffer.from(this.wallet.secretKey).toString('base64');
 
-      // Store wallet
+      // Store wallet with user-specific key
       await AsyncStorage.setItem(
-        WALLET_STORAGE_KEY,
+        storageKey,
         JSON.stringify({ secretKey: secretKeyBase64 })
       );
 
@@ -472,7 +486,8 @@ class SolanaService {
   // Export wallet (for backup)
   async exportWallet(): Promise<string | null> {
     try {
-      const stored = await AsyncStorage.getItem(WALLET_STORAGE_KEY);
+      if (!this.currentUserId) return null;
+      const stored = await AsyncStorage.getItem(this.getStorageKey(this.currentUserId));
       return stored;
     } catch (error) {
       console.error('Error exporting wallet:', error);
@@ -481,13 +496,19 @@ class SolanaService {
   }
 
   // Import wallet
-  async importWallet(secretKeyBase64: string): Promise<SolanaWallet> {
+  async importWallet(secretKeyBase64: string, userId?: string): Promise<SolanaWallet> {
     try {
+      const userIdToUse = userId || this.currentUserId;
+      if (!userIdToUse) {
+        throw new Error('User ID required to import wallet');
+      }
+
       const secretKeyArray = Uint8Array.from(Buffer.from(secretKeyBase64, 'base64'));
       this.wallet = Keypair.fromSecretKey(secretKeyArray);
+      this.currentUserId = userIdToUse;
 
       await AsyncStorage.setItem(
-        WALLET_STORAGE_KEY,
+        this.getStorageKey(userIdToUse),
         JSON.stringify({ secretKey: secretKeyBase64 })
       );
 
@@ -507,8 +528,11 @@ class SolanaService {
 
   // Clear wallet from storage
   async clearWallet(): Promise<void> {
+    if (this.currentUserId) {
+      await AsyncStorage.removeItem(this.getStorageKey(this.currentUserId));
+    }
     this.wallet = null;
-    await AsyncStorage.removeItem(WALLET_STORAGE_KEY);
+    this.currentUserId = null;
   }
 }
 
