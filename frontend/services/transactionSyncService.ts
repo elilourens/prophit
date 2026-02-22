@@ -61,26 +61,31 @@ export async function saveTransactionToSupabase(
   transaction: Transaction
 ): Promise<boolean> {
   try {
-    const { error } = await supabase
+    const insertData = {
+      user_id: userId,
+      date: transaction.date,
+      description: transaction.description,
+      amount: transaction.amount,
+      category: transaction.category || categorizeTransaction(transaction.description),
+      timestamp: transaction.timestamp || new Date().toISOString(),
+    };
+
+    console.log('Inserting transaction to Supabase:', insertData);
+
+    const { data, error } = await supabase
       .from('transactions')
-      .insert({
-        user_id: userId,
-        date: transaction.date,
-        description: transaction.description,
-        amount: transaction.amount,
-        category: transaction.category || categorizeTransaction(transaction.description),
-        timestamp: transaction.timestamp || new Date().toISOString(),
-      });
+      .insert(insertData)
+      .select();
 
     if (error) {
-      console.error('Error saving transaction to Supabase:', error);
+      console.error('Supabase insert error:', error.message, error.details, error.hint);
       return false;
     }
 
-    console.log('Saved transaction to Supabase:', transaction.description);
+    console.log('Saved transaction to Supabase:', data);
     return true;
   } catch (error) {
-    console.error('Error in saveTransactionToSupabase:', error);
+    console.error('Exception in saveTransactionToSupabase:', error);
     return false;
   }
 }

@@ -97,6 +97,7 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
 
   /**
    * Add a new transaction
+   * Throws error on failure for the caller to handle
    */
   const addTransaction = async (transactionData: {
     date: string;
@@ -106,8 +107,7 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
     timestamp?: string;
   }) => {
     if (!user) {
-      console.error('No user logged in');
-      return;
+      throw new Error('No user logged in');
     }
 
     const transaction: Transaction = {
@@ -118,29 +118,25 @@ export const UserDataProvider: React.FC<UserDataProviderProps> = ({ children }) 
       timestamp: transactionData.timestamp || new Date().toISOString(),
     };
 
-    try {
-      console.log('Saving transaction to Supabase...', transaction.description, transaction.amount);
-      const saved = await saveTransactionToSupabase(user.id, transaction);
+    console.log('Saving transaction to Supabase...', transaction);
+    const saved = await saveTransactionToSupabase(user.id, transaction);
 
-      if (saved) {
-        console.log('Transaction saved! Reloading...');
+    if (!saved) {
+      throw new Error('Failed to save transaction to database');
+    }
 
-        // Reload from Supabase
-        const freshDataset = await loadUserDatasetFromSupabase(user.id);
-        if (freshDataset) {
-          setUserDataset(freshDataset);
-          setTransactionsUpdatedAt(Date.now());
+    console.log('Transaction saved! Reloading...');
 
-          // Sync arena spending
-          console.log('Syncing arena spending...');
-          await syncAllArenaSpending(user.id, freshDataset.transactions);
-          console.log('Done!');
-        }
-      } else {
-        console.error('Failed to save transaction');
-      }
-    } catch (err) {
-      console.error('Failed to add transaction:', err);
+    // Reload from Supabase
+    const freshDataset = await loadUserDatasetFromSupabase(user.id);
+    if (freshDataset) {
+      setUserDataset(freshDataset);
+      setTransactionsUpdatedAt(Date.now());
+
+      // Sync arena spending
+      console.log('Syncing arena spending...');
+      await syncAllArenaSpending(user.id, freshDataset.transactions);
+      console.log('Done!');
     }
   };
 

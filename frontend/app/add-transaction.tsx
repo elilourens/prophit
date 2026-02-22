@@ -68,34 +68,55 @@ export default function AddTransactionScreen() {
     }
 
     try {
+      console.log('Opening document picker...');
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/pdf', 'application/json', 'text/csv', 'text/plain'],
         copyToCacheDirectory: true,
       });
 
+      console.log('Document picker result:', result);
+
       if (result.canceled || !result.assets?.[0]) {
+        console.log('Document picker cancelled');
         return;
       }
 
       setIsUploading(true);
       const file = result.assets[0];
-      const isPDF = file.mimeType === 'application/pdf';
+      console.log('Selected file:', file.name, file.mimeType, file.uri);
+
+      const isPDF = file.mimeType === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf');
 
       let transactions: { date: string; description: string; amount: number; category: string }[] = [];
 
-      if (isPDF) {
-        // Read PDF as base64 and parse via backend
-        const base64 = await readFileAsBase64(file.uri);
-        const base64Content = `data:application/pdf;base64,${base64}`;
-        transactions = await parsePDFToTransactions(base64Content, file.uri);
-      } else {
-        // Read text files and parse locally
-        const fileContent = await readFileAsString(file.uri);
-        transactions = parseFileToTransactions(fileContent);
+      try {
+        if (isPDF) {
+          // Read PDF as base64 and parse via backend
+          console.log('Reading PDF as base64...');
+          const base64 = await readFileAsBase64(file.uri);
+          console.log('Base64 length:', base64.length);
+          const base64Content = `data:application/pdf;base64,${base64}`;
+          console.log('Parsing PDF via backend...');
+          transactions = await parsePDFToTransactions(base64Content, file.uri);
+        } else {
+          // Read text files and parse locally
+          console.log('Reading text file...');
+          const fileContent = await readFileAsString(file.uri);
+          console.log('File content length:', fileContent.length);
+          console.log('File preview:', fileContent.substring(0, 200));
+          transactions = parseFileToTransactions(fileContent);
+        }
+      } catch (readError) {
+        console.error('File read error:', readError);
+        showAlert('Read Error', `Could not read file: ${readError}`);
+        setIsUploading(false);
+        return;
       }
 
+      console.log('Parsed transactions:', transactions.length);
+
       if (transactions.length === 0) {
-        showAlert('Upload Failed', 'Could not extract transactions from your file.');
+        showAlert('Upload Failed', 'Could not extract transactions from your file. Make sure it contains valid transaction data.');
         setIsUploading(false);
         return;
       }
@@ -112,7 +133,7 @@ export default function AddTransactionScreen() {
       router.canGoBack() ? router.back() : router.replace('/(tabs)/history');
     } catch (error) {
       console.error('Upload error:', error);
-      showAlert('Error', 'Failed to upload file. Please try again.');
+      showAlert('Error', `Failed to upload file: ${error}`);
     } finally {
       setIsUploading(false);
     }
@@ -134,6 +155,11 @@ export default function AddTransactionScreen() {
   }, [description]);
 
   const handleSubmit = async () => {
+    if (!user) {
+      showAlert('Error', 'Please log in first');
+      return;
+    }
+
     if (!description.trim()) {
       showAlert('Missing Info', 'Please enter a description');
       return;
@@ -157,6 +183,8 @@ export default function AddTransactionScreen() {
       // Create timestamp from date and time inputs
       const timestamp = `${date}T${time}:00.000Z`;
 
+      console.log('Adding transaction:', { date, description: description.trim(), amount: finalAmount, category: finalCategory });
+
       await addTransaction({
         date,
         description: description.trim(),
@@ -165,10 +193,13 @@ export default function AddTransactionScreen() {
         timestamp,
       });
 
+      showAlert('Success', `Added €${parsedAmount.toFixed(2)} expense for ${description.trim()}`);
+
       // Navigate back
       router.canGoBack() ? router.back() : router.replace('/(tabs)/history');
     } catch (error) {
       console.error('Error adding transaction:', error);
+      showAlert('Error', 'Failed to save transaction. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
